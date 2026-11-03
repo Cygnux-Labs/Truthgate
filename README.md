@@ -2,7 +2,7 @@
 
 **When an AI agent says "done", is it telling the truth? And if it isn't, can we see that in the model's internal computation before anyone acts on the claim?**
 
-Truthgate is a small research lab for that question. An open-weight model works as a coding agent. The computer it runs on keeps its own record of what really happened. The model's internal activations are saved at every step. Everything the lab concludes is checked against the record, never against what the agent says about itself.
+Truthgate is a small research experiment for that question. An open-weight model works as a coding agent. The computer it runs on keeps its own record of what really happened. The model's internal activations are saved at every step. Everything the lab concludes is checked against the record, never against what the agent says about itself.
 
 This repository is research code from [Cygnux Labs](https://www.cygnuxlabs.com). Write-up: *Done Is a Claim, Not a Fact: Separating Wrong Claims From Concealed Failure in Coding Agents*.
 
