@@ -1,0 +1,31 @@
+[project]
+name = "truthgate"
+version = "0.1.0"
+description = "Read an AI agent's internals to check whether its 'done' is true, graded against host-recorded ground truth."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "scikit-learn",
+  "pyyaml",
+  "torch>=2.4",
+  "transformers>=5.2",
+  "accelerate",
+  "anthropic",
+  "mcp>=1.2",  # works with 1.x (FastMCP) and 2.x (MCPServer)
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "tokenizers"]
+
+[project.scripts]
+truthgate = "truthgate.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["truthgate"]
+
+[tool.setuptools.package-data]
+truthgate = ["dashboard.html"]

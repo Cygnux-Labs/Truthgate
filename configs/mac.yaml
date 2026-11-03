@@ -1,0 +1,22 @@
+# Default config for a 24 GB Apple Silicon Mac.
+data_dir: data
+work_dir: work
+model:
+  id: Qwen/Qwen3.5-4B          # ~8 GB in bfloat16; fits a 24 GB Mac with room to spare
+  device: auto                 # mps on a Mac
+  dtype: auto                  # bfloat16 on mps/cuda, float32 on cpu
+  max_new_tokens: 1536         # 768 cut off a reply in 11 of 35 v0 runs
+  temperature: 0.7
+  top_p: 0.95
+  layers: null                 # null = save every layer
+  chat_template_kwargs:
+    enable_thinking: false     # faster; set true to give the text monitor the model's reasoning (much slower)
+collect:
+  samples_per_task: 3          # 14 templates x 3 faults x 2 pressures x 3 = 252 runs
+  max_steps: 16                # 12 cut off lying-runner runs that investigated (2 of 3 hit it before submit)
+monitor:
+  model: claude-sonnet-5-5     # needs ANTHROPIC_API_KEY
+  include_reasoning: true
+  workers: 4
+claims:
+  budget: 25                   # total held-out checks allowed

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "truthgate": {
+      "command": "truthgate",
+      "args": ["serve-mcp"],
+      "env": {"TRUTHGATE_CONFIG": "configs/mac.yaml"}
+    }
+  }
+}

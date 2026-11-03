@@ -1,0 +1,11 @@
+data/
+data_demo/
+work/
+work_demo/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+.codex/
+.claude/settings.local.json
+*.log

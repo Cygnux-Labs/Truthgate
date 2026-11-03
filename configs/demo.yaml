@@ -1,0 +1,5 @@
+# Scripted fake agents with a planted signal. No model, no API key. Used to test the pipeline.
+data_dir: data_demo
+work_dir: work_demo
+claims:
+  budget: 25

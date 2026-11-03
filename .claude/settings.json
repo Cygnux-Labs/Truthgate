@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./data/heldout/**)",
+      "Read(./data_demo/heldout/**)",
+      "Edit(./work/claims/**)",
+      "Edit(./work_demo/claims/**)",
+      "Edit(./truthgate/claims.py)",
+      "Edit(./truthgate/labels.py)",
+      "Edit(./truthgate/tasks.py)",
+      "Read(./data/pilot_v0/heldout/**)"
+    ]
+  }
+}
