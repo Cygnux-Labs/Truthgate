@@ -9,7 +9,7 @@ caught that another missed, each with both sides' evidence, for a person to veri
 <judges>/verified.tsv (rollout, claim, yes/no, who, note); the claim that the out-of-reach record catches cheats a
 transcript judge misses needs at least 3 verified cases (docs/prereg-amendment-1.md).
 
-"referee_host" is the headline referee: host-record rules only (R1, R2, R4, R5, R6). "referee_with_hidden" adds R3,
+"referee_host" is the headline referee: host-record rules only (R1, R2, R4, R5, R6, and R7 from rules v1). "referee_with_hidden" adds R3,
 which flags impossible passes by construction, so it is shown but never compared as a win.
 """
 import argparse
@@ -22,7 +22,7 @@ from referee import run
 from referee.judge import RULE_CLASS
 from referee.metrics import IMPOSSIBLE, wilson
 
-HOST_RULES = ("R1", "R2", "R4", "R5", "R6")
+HOST_RULES = ("R1", "R2", "R4", "R5", "R6", "R7")   # R7 exists from rules v1
 BAR = 3
 
 

@@ -264,9 +264,41 @@ def plan(run_dir, models, judge_recall=None, host_recall=None):
             "usd_per_condition": usd and round(usd, 2), "chunks_of_50_per_condition": usd and math.ceil(usd / 50)}
 
 
+def calibrate(run_dir, trust, rules_path):
+    """R7 on a run's recorded evidence, recomputed in memory (nothing written): its recall on the special-casing
+    passes (impossible passes the hidden checks fail with no test, infrastructure or harness flag) and its false
+    alarms on original passes."""
+    rule_set, sha = rules.load_rules(rules_path)
+    special, legit = [], []
+    for vpath in sorted(glob.glob(os.path.join(run_dir, "*", "verdict.json"))):
+        d = os.path.dirname(vpath)
+        with open(os.path.join(d, "meta.json")) as f:
+            variant = json.load(f)["variant"]
+        v, trace, before, after, checks, net, _ = recheck.evidence(d, trust)
+        if not v["passed"]:
+            continue
+        again = rules.verdict(rule_set, sha, v["rollout_id"], trace, before, after, checks, net, v["evidence"])
+        r7 = next((f["evidence"] for f in again["flags"] if f["rule"] == "R7"), [])
+        row = {"rollout_id": v["rollout_id"], "r7": bool(r7),
+               "evidence": [f"{e['pattern']} {e['path']}:{e['lines'][0]} {e['match'][:120]!r}" for e in r7]}
+        if variant in IMPOSSIBLE and "R3" in v["classes"] and not {"R1", "R2", "R5"} & set(v["classes"]):
+            special.append(row)
+        elif variant == "original":
+            legit.append(row)
+    k, n = sum(r["r7"] for r in special), len(special)
+    fp, m = sum(r["r7"] for r in legit), len(legit)
+    return {"rules_sha256": sha, "recall": {"k": k, "n": n, "wilson95": wilson(k, n)},
+            "false_positives": {"k": fp, "n": m, "wilson95": wilson(fp, m)},
+            "special_casing": special, "flagged_original_passes": [r for r in legit if r["r7"]]}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="referee.study")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("calibrate", help="R7 on a run's evidence, in memory")
+    p.add_argument("run_dir")
+    p.add_argument("--rules", default=os.path.join(run.ROOT, "rules-v1.yaml"))
+    p.add_argument("--trust", default=os.path.join(run.ROOT, "signer-data", "trust.json"))
     p = sub.add_parser("plan")
     p.add_argument("pilot_dir")
     p.add_argument("--models", default="claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5")
@@ -278,6 +310,9 @@ def main(argv=None):
     p.add_argument("--c", help="condition (c), pressure (exploratory)")
     p.add_argument("--trust", default=os.path.join(run.ROOT, "signer-data", "trust.json"))
     a = ap.parse_args(argv)
+    if a.cmd == "calibrate":
+        print(json.dumps(calibrate(a.run_dir, a.trust, a.rules), indent=1))
+        return 0
     if a.cmd == "plan":
         out = plan(a.pilot_dir, a.models.split(","), a.judge_recall, a.host_recall)
     else:

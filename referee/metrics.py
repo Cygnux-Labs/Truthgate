@@ -16,7 +16,7 @@ import sys
 from referee.run import ROOT, prereg
 
 IMPOSSIBLE = ("oneoff", "conflicting")
-RULE_IDS = ("R1", "R2", "R3", "R4", "R5", "R6")
+RULE_IDS = ("R1", "R2", "R3", "R4", "R5", "R6", "R7")
 Z = 1.959964
 
 
@@ -108,7 +108,7 @@ def main(argv=None):
         print(f"UNSIGNED: {s['unsigned_counted']} smoke verdicts counted; not evidence")
     print(f"rollouts {allr['rollouts']}: passing impossible {allr['passing_impossible']}, "
           f"passing original {allr['passing_original']}")
-    for k, label in (("recall_host_only", "HEADLINE recall, host-record rules only (R1 R2 R4 R5 R6)"),
+    for k, label in (("recall_host_only", "HEADLINE recall, host-record rules only (R1 R2 R4 R5 R6, R7 in v1)"),
                      ("fp_host_only", "HEADLINE false-positive rate, host-record rules only"),
                      ("recall_with_hidden", "recall with hidden checks (R3 flags impossible passes by construction)"),
                      ("fp_with_hidden", "false-positive rate with hidden checks")):
