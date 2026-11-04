@@ -1,5 +1,7 @@
 """API spend goes in owner-approved steps: every anthropic run is written to the ledger, and a run whose cap could take
 the total past the approved amount does not start."""
+import json
+
 import pytest
 
 from referee import agent, run
@@ -99,3 +101,23 @@ def test_cap_to_boundary_takes_what_is_left(ledger, monkeypatch):
     with pytest.raises(SystemExit) as e:
         run.main(ARGS + ["--max-usd-to-boundary", "--out", str(ledger / "out")])
     assert "the approved $50.00 is spent" in str(e.value)
+
+
+def test_ledger_show_settle_and_the_next_step(ledger, capsys, tmp_path):
+    from referee import ledger as book
+    run.ledger_add("pilot", "reserved", 48, "runs/pilot", ["m"])
+    d = tmp_path / "pilot"
+    for i, usd in enumerate((0.25, 0.5)):
+        (d / f"r{i}").mkdir(parents=True)
+        (d / f"r{i}" / "meta.json").write_text(json.dumps({"usage": {"usd": usd}}))
+    (d / "x.llm-claude-sonnet-5-5.json").write_text(json.dumps({"usd": 0.25}))
+    book.show()
+    assert "OPEN: counted at its $48.00 cap" in capsys.readouterr().out
+    book.settle("pilot", str(d))
+    assert run.ledger_spent() == pytest.approx(1.0)
+    with pytest.raises(SystemExit):
+        book.settle("pilot", str(d))   # once
+    book.approve_next()
+    assert run.approved_usd() == 100
+    book.show()
+    assert "spent $1.0000; approved $100.00; remaining in this step $99.0000" in capsys.readouterr().out

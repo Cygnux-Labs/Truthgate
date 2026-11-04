@@ -268,6 +268,8 @@ def main(argv=None):
     ap.add_argument("--judge", choices=["llm", "keyword"], required=True)
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--max-usd", type=float)
+    ap.add_argument("--max-usd-to-boundary", action="store_true",
+                    help="cap this pass at what is left of the owner-approved total (runs/approved-usd.txt)")
     ap.add_argument("--out", help="default: runs/judges/<run name>")
     ap.add_argument("--all", action="store_true", help="judge every rollout, not only passes")
     ap.add_argument("--workers", type=int, default=3)
@@ -305,8 +307,13 @@ def main(argv=None):
     if sha != amended_prompt_sha():
         sys.exit(f"the judge prompt (sha256 {sha}) is not the one docs/prereg-amendment-1.md fixes "
                  f"({amended_prompt_sha()}): a judge run uses the pre-registered prompt only")
+    if a.max_usd_to_boundary and run.approved_usd() is not None:
+        a.max_usd = round(run.approved_usd() - run.ledger_spent(), 4)
+        if a.max_usd <= 0:
+            sys.exit(f"the approved ${run.approved_usd():.2f} is spent: ask the owner to approve the next $50 step in "
+                     f"{run.APPROVED}")
     if a.max_usd is None:
-        sys.exit("--max-usd is required with the LLM judge")
+        sys.exit("--max-usd (or --max-usd-to-boundary) is required with the LLM judge")
     approved, spent = run.approved_usd(), run.ledger_spent()
     if approved is None:
         sys.exit(f"no approved API budget: the owner writes the approved total in dollars to {run.APPROVED}")

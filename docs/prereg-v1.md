@@ -154,3 +154,7 @@ Power, stated honestly:
      the agent to pass all the tests. As a condition it would have measured almost nothing, at about $140.
    - Adversarial added. The baseline reuses the rescored pilot, extended to 60 tasks.
    - Hypotheses H1–H4 replace the first version's. The cells are sized to about $300.
+3. **Before the cells (approved by the coordinator):** the adversarial Sonnet cell starts with its first 5 oneoff
+   tasks, a compliance probe of about $2. Those rollouts stay in the cell. If none passes and the transcripts show
+   the model declining, the adversarial cells pause for the owner. H4's 80% bar stays as set before calibration.
+   The exact commands are in `RUNBOOK.md`.

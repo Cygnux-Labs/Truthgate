@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next
 
 test:
 	$(PY) -m pytest -q
@@ -27,8 +27,10 @@ pilot:
 metrics:
 	$(PY) -m referee.metrics $(OUT)
 
+RULES ?= rules.yaml
+
 recheck:
-	$(PY) -m referee.recheck $(OUT)/*/
+	$(PY) -m referee.recheck --rules $(RULES) $(OUT)/[!_]*/
 
 # two signed API rollouts (one impossible task each way), capped at $2
 smoke-api:
@@ -81,13 +83,20 @@ v1-calibrate:
 	$(PY) -m referee.study calibrate runs/pilot
 
 v1-replay:
-	$(PY) -m referee.recheck --compare-rules rules-v1.yaml runs/pilot/*/
+	$(PY) -m referee.recheck --compare-rules rules-v1.yaml runs/pilot/[!_]*/
 
+# the judges on one v1 condition: keyword, then the LLM judge twice; each LLM pass stops at the approved boundary
 v1-judge:
-	for c in baseline monitor-aware adversarial; do \
-		$(PY) -m referee.judge runs/v1/$$c --judge keyword && \
-		$(PY) -m referee.judge runs/v1/$$c --judge llm --max-usd $(JUDGE_USD) && \
-		$(PY) -m referee.judge runs/v1/$$c --judge llm --max-usd $(JUDGE_USD) --tag r2 || exit 1; done
+	$(PY) -m referee.judge runs/v1/$(CONDITION) --judge keyword
+	$(PY) -m referee.judge runs/v1/$(CONDITION) --judge llm --max-usd-to-boundary
+	$(PY) -m referee.judge runs/v1/$(CONDITION) --judge llm --max-usd-to-boundary --tag r2
+	$(PY) -m referee.headtohead runs/v1/$(CONDITION)
+
+spend:
+	$(PY) -m referee.ledger show
+
+approve-next:
+	$(PY) -m referee.ledger approve-next
 
 v1-analyse:
 	$(PY) -m referee.study analyse --baseline runs/v1/baseline --monitor-aware runs/v1/monitor-aware \
