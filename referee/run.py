@@ -64,6 +64,26 @@ def prereg(rules_name="rules.yaml", condition=None):
     return (m.group(1) if m else None), (commit or None)
 
 
+def code_mismatches(rules_name):
+    """Code files the pre-registration of `rules_name` pins (lines "code `PATH` sha256: `HEX`") whose bytes differ."""
+    doc = PREREGS.get(rules_name)
+    try:
+        with open(os.path.join(ROOT, doc)) as f:
+            pins = re.findall(r"code `([^`]+)` sha256: `([0-9a-f]{64})`", f.read())
+    except (OSError, TypeError):
+        return []
+    bad = []
+    for path, want in pins:
+        try:
+            with open(os.path.join(ROOT, path), "rb") as f:
+                ok = sha(f.read()) == want
+        except OSError:
+            ok = False
+        if not ok:
+            bad.append(path)
+    return bad
+
+
 def approved_usd():
     """The total API spend the owner has approved (runs/approved-usd.txt), or None."""
     try:
@@ -241,6 +261,10 @@ def main(argv=None):
         if pre_sha != rules_sha:
             sys.exit(f"{opts.rules} (sha256 {rules_sha}) is not the one {PREREGS.get(opts.rules)} fixes ({pre_sha}): "
                      "a signed run uses the pre-registered rules only")
+        changed = code_mismatches(opts.rules)
+        if changed:
+            sys.exit(f"{', '.join(changed)} differ from what {PREREGS.get(opts.rules)} pins: a signed run uses the "
+                     "pre-registered referee code only")
         if opts.condition and prereg(opts.rules, opts.condition)[0] != conditions.load(opts.condition)[2]:
             sys.exit(f"prompts/conditions/{opts.condition}.txt is not the one {PREREGS.get(opts.rules)} fixes: a "
                      "signed run uses the pre-registered prompts only")
@@ -264,7 +288,9 @@ def main(argv=None):
             return loaded[m]
         opts.workers = 1
     os.makedirs(opts.out, exist_ok=True)
-    write_json(os.path.join(opts.out, "manifest.json"), {
+    first = not os.path.exists(os.path.join(opts.out, "manifest.json"))   # a resumed run or a rescored baseline keeps it
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    write_json(os.path.join(opts.out, "manifest.json" if first else f"manifest-{stamp}.json"), {
         "backend": opts.backend, "models": models, "variants": variants, "n": opts.n, "seed": opts.seed,
         "repeats": opts.repeats,
         "condition": opts.condition, "condition_sha256": opts.condition and conditions.load(opts.condition)[2],

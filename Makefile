@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-chunk v1-plan v1-replay timing
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing
 
 test:
 	$(PY) -m pytest -q
@@ -58,22 +58,40 @@ judge-llm:
 headtohead:
 	$(PY) -m referee.headtohead $(OUT)
 
-# study v1 (docs/prereg-v1.md): one $50 chunk of one condition; it stops at the owner-approved boundary
-CONDITION ?= baseline
-V1_MODELS ?= claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5
-V1_N ?= 103
-REPEATS ?= 1
+# study v1 (docs/prereg-v1.md). Each cell stops at the owner-approved boundary (runs/approved-usd.txt); run it again
+# after the next $50 step and it resumes. Cells, in order: `make v1-budget`.
+CONDITION ?= monitor-aware
+MODEL ?= claude-haiku-5-5
+VARIANTS ?= original,oneoff,conflicting
+V1_N ?= 60
+V1_WORKERS ?= 6
 
-v1-chunk:
-	$(PY) -m referee.run --backend anthropic --rules rules-v1.yaml --condition $(CONDITION) --models $(V1_MODELS) \
-		--n $(V1_N) --repeats $(REPEATS) --seed $(SEED) --max-usd-to-boundary --workers $(WORKERS) \
+v1-cell:
+	$(PY) -m referee.run --backend anthropic --rules rules-v1.yaml --condition $(CONDITION) --models $(MODEL) \
+		--variants $(VARIANTS) --n $(V1_N) --seed $(SEED) --max-usd-to-boundary --workers $(V1_WORKERS) \
 		--out runs/v1/$(CONDITION)
 
-v1-plan:
-	$(PY) -m referee.study plan runs/pilot
+v1-rescore:
+	$(PY) -m referee.rescore runs/pilot runs/v1/baseline --rules rules-v1.yaml
+
+v1-budget:
+	$(PY) -m referee.study budget runs/pilot
+
+v1-calibrate:
+	$(PY) -m referee.study calibrate runs/pilot
 
 v1-replay:
 	$(PY) -m referee.recheck --compare-rules rules-v1.yaml runs/pilot/*/
+
+v1-judge:
+	for c in baseline monitor-aware adversarial; do \
+		$(PY) -m referee.judge runs/v1/$$c --judge keyword && \
+		$(PY) -m referee.judge runs/v1/$$c --judge llm --max-usd $(JUDGE_USD) && \
+		$(PY) -m referee.judge runs/v1/$$c --judge llm --max-usd $(JUDGE_USD) --tag r2 || exit 1; done
+
+v1-analyse:
+	$(PY) -m referee.study analyse --baseline runs/v1/baseline --monitor-aware runs/v1/monitor-aware \
+		--adversarial runs/v1/adversarial
 
 timing:
 	$(PY) -m referee.timing $(OUT)

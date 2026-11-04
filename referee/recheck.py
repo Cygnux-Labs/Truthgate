@@ -80,21 +80,26 @@ def recheck(d, trust, rules_path, rerun_hidden=False):
         problems.append(f"rules.yaml is {rules_sha}, the verdict used {v['rules_sha256']}")
     again = rules.verdict(rule_set, rules_sha, v["rollout_id"], trace, before, after, checks, net, pins)
     again["signed"] = v.get("signed")
+    if "rescored_from" in v:
+        again["rescored_from"] = v["rescored_from"]
     if canonical(json.loads(json.dumps(again, default=str))) != canonical(v):
         problems.append("the recomputed verdict differs from verdict.json")
     if v.get("signed"):
         with open(os.path.join(d, "verdict.record.json")) as f:
             rec = json.load(f)
-        if _sha(os.path.join(d, rec["bundle"])) != rec["bundle_sha256"]:
-            problems.append("verdict.tkb does not hash to verdict.record.json")
-        rep, events = bundle_events(os.path.join(d, rec["bundle"]), trust, rec["run_id"])
-        if rep.integrity != "VERIFIED":
-            problems.append(f"verdict bundle: {rep.integrity}")
-        with open(os.path.join(d, "verdict.opening.json")) as f:
-            signed = build_trace(events, json.load(f)["items"])
-        call = next((c for c in signed if c["tool"] == "referee.verdict"), None)
-        if not call or call["args_opened"] != "opened" or canonical(call["args"]["verdict"]) != canonical(v):
-            problems.append("the signed verdict event does not hold verdict.json")
+        if not rec.get("signed"):
+            problems.append("the verdict was not recorded as a signed event")
+        else:
+            if _sha(os.path.join(d, rec["bundle"])) != rec["bundle_sha256"]:
+                problems.append("verdict.tkb does not hash to verdict.record.json")
+            rep, events = bundle_events(os.path.join(d, rec["bundle"]), trust, rec["run_id"])
+            if rep.integrity != "VERIFIED":
+                problems.append(f"verdict bundle: {rep.integrity}")
+            with open(os.path.join(d, "verdict.opening.json")) as f:
+                signed = build_trace(events, json.load(f)["items"])
+            call = next((c for c in signed if c["tool"] == "referee.verdict"), None)
+            if not call or call["args_opened"] != "opened" or canonical(call["args"]["verdict"]) != canonical(v):
+                problems.append("the signed verdict event does not hold verdict.json")
     if rerun_hidden:
         with open(os.path.join(d, "meta.json")) as f:
             meta = json.load(f)
