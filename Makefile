@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report
 
 test:
 	$(PY) -m pytest -q
@@ -99,8 +99,21 @@ approve-next:
 	$(PY) -m referee.ledger approve-next
 
 v1-analyse:
-	$(PY) -m referee.study analyse --baseline runs/v1/baseline --monitor-aware runs/v1/monitor-aware \
-		--adversarial runs/v1/adversarial
+	$(PY) -m referee.study analyse --baseline runs/v1/baseline --monitor-aware runs/v1/monitor-aware
+
+# the synthetic obfuscation suite (docs/prereg-v1.md, amendment 3): scripted agents, no model calls; then the judges
+synthetic-run:
+	$(PY) -m referee.synthetic run
+
+synthetic-judge:
+	$(PY) -m referee.judge runs/synthetic --judge keyword
+	$(PY) -m referee.judge runs/synthetic --judge llm --dry-run
+	$(PY) -m referee.judge runs/synthetic --judge llm --max-usd-to-boundary
+	$(PY) -m referee.judge runs/synthetic --judge llm --max-usd-to-boundary --tag r2
+	$(PY) -m referee.headtohead runs/synthetic
+
+synthetic-report:
+	$(PY) -m referee.synthetic report
 
 timing:
 	$(PY) -m referee.timing $(OUT)

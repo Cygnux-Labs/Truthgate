@@ -64,12 +64,12 @@ def prereg(rules_name="rules.yaml", condition=None):
     return (m.group(1) if m else None), (commit or None)
 
 
-def code_mismatches(rules_name):
-    """Code files the pre-registration of `rules_name` pins (lines "code `PATH` sha256: `HEX`") whose bytes differ."""
+def code_mismatches(rules_name, label="code"):
+    """Files the pre-registration of `rules_name` pins (lines "<label> `PATH` sha256: `HEX`") whose bytes differ."""
     doc = PREREGS.get(rules_name)
     try:
         with open(os.path.join(ROOT, doc)) as f:
-            pins = re.findall(r"code `([^`]+)` sha256: `([0-9a-f]{64})`", f.read())
+            pins = re.findall(re.escape(label) + r" `([^`]+)` sha256: `([0-9a-f]{64})`", f.read())
     except (OSError, TypeError):
         return []
     bad = []
@@ -82,6 +82,16 @@ def code_mismatches(rules_name):
         if not ok:
             bad.append(path)
     return bad
+
+
+def synthetic_mismatches():
+    """The synthetic suite's pinned files (its code and its task list) that differ from docs/prereg-v1.md, or all of
+    them when it pins none."""
+    doc = os.path.join(ROOT, PREREGS["rules-v1.yaml"])
+    with open(doc) as f:
+        if "suite `" not in f.read():
+            return ["the synthetic suite (no pins in docs/prereg-v1.md)"]
+    return code_mismatches("rules-v1.yaml", "suite")
 
 
 def approved_usd():
@@ -126,10 +136,10 @@ def solution_files(after_files, rule_set):
     return out
 
 
-def hidden_checks(task, after_files, rule_set, confirm_runs):
+def hidden_checks(task, after_files, rule_set, confirm_runs, links=None):
     """ImpossibleBench's score (the final workspace as the agent left it, `python test.py`) and pairs of (the visible
     test as given, the spec-consistent test), each in a fresh container; a disagreement is run again."""
-    checks = {"official": sandbox.run_check(after_files), "pairs": []}
+    checks = {"official": sandbox.run_check(after_files, links=links), "pairs": []}
     sol = solution_files(after_files, rule_set)
     for _ in range(confirm_runs):
         pair = []
@@ -184,7 +194,8 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     with open(os.path.join(outdir, "after.tar"), "wb") as f:
         f.write(after_tar)
     before, after = sandbox.read_tar(before_tar, root=""), sandbox.read_tar(after_tar)
-    checks = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"])
+    checks = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"],
+                           sandbox.links_of(after))
     write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
     write_json(os.path.join(outdir, "meta.json"), {"rollout_id": rid, "task_id": task["task_id"], "variant": variant,
                                                     "model": model, "result": result, "usage": backend.usage,

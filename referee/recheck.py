@@ -105,7 +105,8 @@ def recheck(d, trust, rules_path, rerun_hidden=False):
             meta = json.load(f)
         task = next(t for t in map(json.loads, open(os.path.join(ROOT, "data", "tasks", f"{meta['variant']}.jsonl")))
                     if t["task_id"] == meta["task_id"])
-        fresh = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"])
+        fresh = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"],
+                              sandbox.links_of(after))
         bits = lambda c: (c["official"]["passed"], [[x["passed_strict"] for x in p] for p in c["pairs"]])  # noqa: E731
         if bits(fresh) != bits(checks):
             problems.append(f"hidden checks re-run differently: {bits(fresh)} vs recorded {bits(checks)}")
