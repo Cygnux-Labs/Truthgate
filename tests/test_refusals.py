@@ -32,6 +32,9 @@ def test_key_is_read_from_the_keychain_and_not_echoed(monkeypatch, capsys):
 
 
 def test_pilot_exits_with_the_key_message(monkeypatch, tmp_path, capsys):
+    (tmp_path / "approved-usd.txt").write_text("50\n")
+    monkeypatch.setattr(run, "APPROVED", str(tmp_path / "approved-usd.txt"))
+    monkeypatch.setattr(run, "LEDGER", str(tmp_path / "spend-ledger.tsv"))
     monkeypatch.setattr(agent.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 44, "", ""))
     monkeypatch.setattr(run, "TracekitRecorder", lambda root: object())   # a signer, so the key check is reached
     monkeypatch.setattr(run, "prereg", lambda: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))

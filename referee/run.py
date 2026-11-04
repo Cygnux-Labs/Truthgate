@@ -25,6 +25,11 @@ from referee.recorder import FakeRecorder, SignerMissing, TracekitRecorder
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SMOKE_MAX = 3
+# API spend goes in owner-approved steps: every anthropic run is written to the ledger, and a run that could take the
+# total past the approved amount does not start
+LEDGER = os.path.join(ROOT, "runs", "spend-ledger.tsv")
+APPROVED = os.path.join(ROOT, "runs", "approved-usd.txt")
+LEDGER_HEAD = "utc\trun\tkind\tusd\tout\tmodels\n"
 
 
 def sha(data):
@@ -49,6 +54,36 @@ def prereg():
     except OSError:
         return None, None
     return (m.group(1) if m else None), (commit or None)
+
+
+def approved_usd():
+    """The total API spend the owner has approved (runs/approved-usd.txt), or None."""
+    try:
+        with open(APPROVED) as f:
+            return float(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def ledger_spent():
+    """Estimated USD of every anthropic run in the ledger: its settled amount, or its whole cap when it never settled
+    (a run killed mid-way)."""
+    try:
+        with open(LEDGER) as f:
+            rows = [line.rstrip("\n").split("\t") for line in f.readlines()[1:] if line.strip()]
+    except FileNotFoundError:
+        return 0.0
+    reserved = {r[1]: float(r[3]) for r in rows if r[2] == "reserved"}
+    settled = {r[1]: float(r[3]) for r in rows if r[2] == "settled"}
+    return sum(settled.get(k, v) for k, v in reserved.items())
+
+
+def ledger_add(run_id, kind, usd, out, models):
+    os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
+    new = not os.path.exists(LEDGER)
+    with open(LEDGER, "a") as f:
+        f.write((LEDGER_HEAD if new else "") + "\t".join([time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), run_id,
+                                                          kind, f"{usd:.6f}", out, ",".join(models)]) + "\n")
 
 
 def solution_files(after_files, rule_set):
@@ -158,6 +193,16 @@ def main(argv=None):
     pre_sha, pre_commit = prereg()
     jobs = [(t, v, m) for m in models for v in variants
             for t in tasks.load(os.path.join(ROOT, "data", "tasks"), v, opts.n, opts.seed)]
+    if opts.backend == "anthropic" and not opts.unsigned_smoke:
+        if opts.max_usd is None:
+            sys.exit("--max-usd is required with the anthropic backend")
+        approved, spent = approved_usd(), ledger_spent()
+        if approved is None:
+            sys.exit(f"no approved API budget: the owner writes the approved total in dollars to {APPROVED}")
+        if spent + opts.max_usd > approved + 1e-9:
+            sys.exit(f"refusing to run: ${spent:.2f} spent so far plus --max-usd ${opts.max_usd:.2f} would pass the "
+                     f"approved ${approved:.2f}; lower --max-usd to at most ${max(approved - spent, 0):.2f}, or ask the "
+                     f"owner to approve the next $50 step in {APPROVED}")
     if opts.unsigned_smoke:
         if opts.backend != "mlx" or len(jobs) > SMOKE_MAX:
             sys.exit(f"--unsigned-smoke: local model only, at most {SMOKE_MAX} rollouts ({len(jobs)} asked)")
@@ -171,8 +216,6 @@ def main(argv=None):
         except SignerMissing as e:
             sys.exit(f"refusing to run: {e}")
     if opts.backend == "anthropic":
-        if opts.max_usd is None:
-            sys.exit("--max-usd is required with the anthropic backend")
         try:
             agent.keychain_key()
         except agent.KeyMissing as e:
@@ -211,12 +254,20 @@ def main(argv=None):
             stop.set()
         return f"{rid}: {msg}"
 
-    with concurrent.futures.ThreadPoolExecutor(opts.workers) as ex:
-        for line in ex.map(lambda j: job(*j), jobs):
-            if line:
-                print(line, flush=True)
+    run_id = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{secrets.token_hex(4)}"
     if opts.backend == "anthropic":
-        print(f"estimated API spend: ${budget.spent:.4f} of ${opts.max_usd:.2f}")
+        ledger_add(run_id, "reserved", opts.max_usd, opts.out, models)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(opts.workers) as ex:
+            for line in ex.map(lambda j: job(*j), jobs):
+                if line:
+                    print(line, flush=True)
+    finally:
+        if opts.backend == "anthropic":
+            ledger_add(run_id, "settled", budget.spent, opts.out, models)
+            total, approved = ledger_spent(), approved_usd()
+            print(f"estimated API spend: this run ${budget.spent:.4f} of its ${opts.max_usd:.2f} cap; all runs "
+                  f"${total:.4f} of the approved ${approved:.2f}; remaining ${approved - total:.4f}")
     return 1 if stop.is_set() else 0
 
 
