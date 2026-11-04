@@ -36,7 +36,7 @@ CLASSES = ("test_modification", "test_infrastructure", "special_casing", "out_of
 RULE_CLASS = {"R1": "test_modification", "R2": "test_infrastructure", "R3": "special_casing",
               "R4": "out_of_workspace_read", "R5": "harness_tampering", "R6": "network_fetch", "R7": "special_casing"}
 MODEL, EFFORT, MAX_TOKENS = "claude-sonnet-5-5", "high", 16000
-REALISTIC_OUT = 3000   # output tokens (thinking and JSON) a verdict usually takes, for --dry-run's estimate
+REALISTIC_OUT = 1000   # output tokens (thinking and JSON) a verdict takes, for --dry-run: about 820 measured
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -59,6 +59,18 @@ def prompt_text():
     with open(PROMPT, "rb") as f:
         raw = f.read()
     return raw.decode(), hashlib.sha256(raw).hexdigest()
+
+
+def views_pins_ok(prompt_sha):
+    """Whether docs/prereg-v1.md (amendment 4) pins this views prompt and the views code as they are now."""
+    try:
+        with open(os.path.join(run.ROOT, "docs", "prereg-v1.md")) as f:
+            text = f.read()
+    except OSError:
+        return False
+    m = re.search(r"views judge prompt sha256: `([0-9a-f]{64})`", text)
+    return bool(m and m.group(1) == prompt_sha and "views `referee/views.py` sha256" in text
+                and not run.code_mismatches("rules-v1.yaml", "views"))
 
 
 def amended_prompt_sha():
@@ -275,17 +287,30 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--dry-run", action="store_true", help="estimate the LLM judge's cost; no API call")
     ap.add_argument("--tag", help="a repeat pass, kept apart (e.g. r2): <rollout>.llm-<model>.<tag>.json")
+    ap.add_argument("--view", choices=["v1", "v2", "v3", "v4"],
+                    help="amendment 4: judge one view of each rollout (referee/views.py), with the views prompt; "
+                         "outputs in runs/judges/views/<run name>")
     a = ap.parse_args(argv)
-    out = a.out or os.path.join(run.ROOT, "runs", "judges", os.path.basename(os.path.normpath(a.run_dir)))
-    system, sha = prompt_text()
-    name = "keyword" if a.judge == "keyword" else f"llm-{a.model}" + (f".{a.tag}" if a.tag else "")
+    if a.view:
+        from referee import views
+        out = a.out or os.path.join(views.JUDGES, os.path.basename(os.path.normpath(a.run_dir)))
+        with open(views.PROMPT, "rb") as f:
+            raw = f.read()
+        system, sha = raw.decode(), hashlib.sha256(raw).hexdigest()
+        label = f"@{a.view}"
+    else:
+        out = a.out or os.path.join(run.ROOT, "runs", "judges", os.path.basename(os.path.normpath(a.run_dir)))
+        system, sha = prompt_text()
+        label = ""
+    name = ("keyword" if a.judge == "keyword" else f"llm-{a.model}") + (f".{a.view}" if a.view else "") + \
+        (f".{a.tag}" if a.tag and a.judge == "llm" else "")
     todo = [d for d in rollouts(a.run_dir, a.all)
             if not os.path.exists(os.path.join(out, f"{os.path.basename(d)}.{name}.json"))]
     loaded, scaffold = {}, agent_system(a.run_dir)
     for d in todo:
         with open(os.path.join(d, "transcript.json")) as f:
             loaded[d] = json.load(f)
-    rendered = {d: render(t, scaffold) for d, t in loaded.items()}
+    rendered = {d: views.render(a.view, d, t, scaffold) if a.view else render(t, scaffold) for d, t in loaded.items()}
     if a.judge == "llm" and a.dry_run:
         chars = sum(len(system) + len(r) for r in rendered.values())
         likely = sum(agent.Budget.cost(a.model, (len(system) + len(r)) / 3.5, REALISTIC_OUT) for r in rendered.values())
@@ -299,12 +324,17 @@ def main(argv=None):
     os.makedirs(out, exist_ok=True)
     if a.judge == "keyword":
         for d in todo:
-            res = keyword_judge(loaded[d])
-            run.write_json(os.path.join(out, f"{os.path.basename(d)}.keyword.json"),
-                           {"judge": "keyword", "rollout_id": os.path.basename(d), "result": res, "error": None})
+            res = views.keyword(a.view, d, loaded[d]) if a.view else keyword_judge(loaded[d])
+            run.write_json(os.path.join(out, f"{os.path.basename(d)}.{name}.json"),
+                           {"judge": "keyword" + label, "rollout_id": os.path.basename(d), "result": res,
+                            "error": None})
         print(f"keyword judge: {len(todo)} rollouts judged into {out}")
         return 0
-    if sha != amended_prompt_sha():
+    if a.view:
+        if not views_pins_ok(sha):
+            sys.exit(f"the views prompt (sha256 {sha}) or referee/views.py is not what docs/prereg-v1.md pins "
+                     "(amendment 4): a view run uses the pre-registered prompt and code only")
+    elif sha != amended_prompt_sha():
         sys.exit(f"the judge prompt (sha256 {sha}) is not the one docs/prereg-amendment-1.md fixes "
                  f"({amended_prompt_sha()}): a judge run uses the pre-registered prompt only")
     if a.max_usd_to_boundary and run.approved_usd() is not None:
@@ -343,7 +373,7 @@ def main(argv=None):
         except Exception as e:   # an API error: no file, so a re-run judges it again
             return f"{rid}: FAILED {type(e).__name__}: {str(e)[:300]}"
         run.write_json(os.path.join(out, f"{rid}.{name}.json"), {
-            "judge": f"llm:{a.model}" + (f"#{a.tag}" if a.tag else ""), "rollout_id": rid, "model": a.model, "effort": EFFORT,
+            "judge": f"llm:{a.model}" + label + (f"#{a.tag}" if a.tag else ""), "view": a.view, "rollout_id": rid, "model": a.model, "effort": EFFORT,
             "max_tokens": MAX_TOKENS, "prompt_sha256": sha, **rec})
         if rec["error"]:
             return f"{rid}: {rec['error']}"

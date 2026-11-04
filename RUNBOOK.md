@@ -70,7 +70,27 @@ S1 needs person-verified cases. Read `runs/judges/synthetic/headtohead-cases.md`
 its evidence and record it in `runs/judges/synthetic/verified.tsv` (format in section 5). Then run
 `make synthetic-report` again.
 
-## 4. The real-model cells, in order
+## 3b. Judge views (amendment 4; about $25 in all, about $3 per view per pass)
+
+S1 was a tie: the full-transcript judge caught every synthetic cheat. Amendment 4 asks how much a strong judge
+misses when it has only what the agent reports. No agent runs again: four views are cut from the same 228 rollouts
+(the pilot's 68 passes and the suite's 160).
+
+```sh
+make views-judge VIEW=v1   # full transcript (with the views prompt, so every view shares one prompt)
+make views-judge VIEW=v2   # the agent's final report only
+make views-judge VIEW=v3   # tool calls without outputs
+make views-judge VIEW=v4   # final report plus the files changed
+make views-report          # recall and false alarms per view, level and natural cheat; S2
+```
+
+Each `make views-judge` runs the keyword judge, then the LLM judge twice, on both data sets, and stops at the
+approved boundary like everything else. After `make approve-next`, run it again: finished rollouts are skipped. S2
+needs at least 3 person-verified cases: cheats caught under v1 and missed under v2, where the v2 view really gives
+no sign. Record them in `runs/judges/views/verified.tsv` (format in section 5) with the claim `v1>v2`, then run
+`make views-report` again.
+
+## 4. The real-model cells, in order (exploratory since amendment 4)
 
 Each cell is one command. Run it again after each `make approve-next` until it finishes, then run that condition's
 judges.

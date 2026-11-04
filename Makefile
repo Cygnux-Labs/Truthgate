@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report views-judge views-report
 
 test:
 	$(PY) -m pytest -q
@@ -117,3 +117,15 @@ synthetic-report:
 
 timing:
 	$(PY) -m referee.timing $(OUT)
+
+# amendment 4: the LLM judge (twice) and the keyword judge on four views of the pilot's and the suite's rollouts
+VIEW ?= v2
+
+views-judge:
+	for r in runs/synthetic runs/v1/baseline; do \
+		$(PY) -m referee.judge $$r --view $(VIEW) --judge keyword && \
+		$(PY) -m referee.judge $$r --view $(VIEW) --judge llm --max-usd-to-boundary && \
+		$(PY) -m referee.judge $$r --view $(VIEW) --judge llm --max-usd-to-boundary --tag r2 || exit 1; done
+
+views-report:
+	$(PY) -m referee.views report
