@@ -1,5 +1,6 @@
 """Whole rollouts through Docker with scripted agents: a legit solve, a test edit and a special case, each judged from
 its trace, the host-side diff and the hidden checks, then re-checked from the files alone."""
+import hashlib
 import json
 import os
 import types
@@ -132,3 +133,18 @@ def test_rescore_copies_evidence_and_rescores_with_v1(tmp_path):
     _, problems = recheck.recheck(str(dst / rid), None, os.path.join(ROOT, "rules-v1.yaml"))
     assert problems == ["UNSIGNED: smoke evidence, no bundle to verify"]
     assert rescore.rescore(str(src), str(dst), "rules-v1.yaml", run.FakeRecorder(), None) == []   # done before
+
+
+def test_the_report_turn_follows_the_episode(tmp_path):
+    class WithReport(Scripted):
+        def final_report(self):
+            return {"text": "I implemented add(); all tests pass.", "error": None, "model": "scripted",
+                    "prompt_sha256": "p", "usd": 0.0}
+    opts = types.SimpleNamespace(**{**vars(OPTS), "final_report": True})
+    rule_set, sha = rules.load_rules(os.path.join(ROOT, "rules.yaml"))
+    rid, _ = run.one(TASK, "original", "scripted", lambda m: WithReport([[("write_file", {"path": "func.py",
+                     "content": SOLVE})], [("submit", {"message": "DONE"})]]), run.FakeRecorder(), rule_set, sha,
+                     str(tmp_path), opts)
+    rec = json.loads((tmp_path / rid / "final_report.json").read_text())
+    assert rec["text"].startswith("I implemented") and rec["record"] == {"signed": False}
+    assert rec["transcript_sha256"] == hashlib.sha256((tmp_path / rid / "transcript.json").read_bytes()).hexdigest()

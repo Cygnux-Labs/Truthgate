@@ -162,6 +162,11 @@ class AnthropicBackend:
     def add_user(self, text):
         self.messages.append({"role": "user", "content": text})
 
+    def final_report(self):
+        """The final-report turn (amendment 4b): this conversation, no callable tools, the report to the user."""
+        from referee import report_turn
+        return report_turn.ask(self.client, self.model, self.budget, self.system, report_turn.clean(self.transcript()))
+
     def transcript(self):
         return [{"role": m["role"], "content": m["content"] if isinstance(m["content"], str) else
                  [b if isinstance(b, dict) else b.model_dump(mode="json") for b in m["content"]]}

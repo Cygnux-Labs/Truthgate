@@ -119,6 +119,9 @@ class FakeRecorder:
     def record_verdict(self, verdict, outdir):
         return {"signed": False}
 
+    def record_event(self, rollout_id, tool, args, result, outdir, stem, agent=None):
+        return {"signed": False}
+
 
 class _Run:
     """A rollout's Tracekit run: every decide and complete must reach the signer, or the rollout stops."""
@@ -208,17 +211,21 @@ class TracekitRecorder:
         return {"signed": True, "run_id": run.run_id, "bundle": "rollout.tkb", "bundle_sha256": digest,
                 "opening": "opening.json", "trace": build_trace(events, items)}
 
-    def record_verdict(self, verdict, outdir):
-        """The verdict as a signed event: a run of the referee with one call, `referee.verdict`, whose arguments are
-        the verdict; exported as verdict.tkb, opened in verdict.opening.json."""
-        handle = self.client.run(agent=REFEREE, principal=verdict["rollout_id"])
+    def record_event(self, rollout_id, tool, args, result, outdir, stem, agent=REFEREE):
+        """One signed event about a rollout: a run with one call, `tool`, whose arguments are `args` and result
+        `result`; exported as <stem>.tkb, opened in <stem>.opening.json."""
+        handle = self.client.run(agent=agent, principal=rollout_id)
         run = _Run(handle)
-        d = run.decide("verdict", "referee.verdict", {"verdict": verdict})
-        run.complete("verdict", {"verdict_sha256": hashlib.sha256(canonical(verdict)).hexdigest()})
+        d = run.decide(stem, tool, args)
+        run.complete(stem, result)
         run.close()
-        bundle = os.path.join(outdir, "verdict.tkb")
+        bundle = os.path.join(outdir, f"{stem}.tkb")
         digest, events = self._export(run.run_id, bundle)
-        self._opening(run.run_id, events, os.path.join(outdir, "verdict.opening.json"),
-                      f"referee verdict {verdict['rollout_id']}")
-        return {"signed": True, "run_id": run.run_id, "bundle": "verdict.tkb", "bundle_sha256": digest,
+        self._opening(run.run_id, events, os.path.join(outdir, f"{stem}.opening.json"), f"referee {stem} {rollout_id}")
+        return {"signed": True, "run_id": run.run_id, "bundle": f"{stem}.tkb", "bundle_sha256": digest,
                 "decision_seq": d["run_seq"]}
+
+    def record_verdict(self, verdict, outdir):
+        """The verdict as a signed event: one call, `referee.verdict`, whose arguments are the verdict."""
+        return self.record_event(verdict["rollout_id"], "referee.verdict", {"verdict": verdict},
+                                 {"verdict_sha256": hashlib.sha256(canonical(verdict)).hexdigest()}, outdir, "verdict")

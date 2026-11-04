@@ -259,6 +259,19 @@ def llm_judge(client, model, budget, system_prompt, rendered):
 
 # --- the command ---------------------------------------------------------------------------------------------------
 
+def _meta(d):
+    with open(os.path.join(d, "meta.json")) as f:
+        return json.load(f)
+
+
+def _has_report(d):
+    from referee import views
+    try:
+        return bool(views.final_report(d))
+    except views.NoReport:
+        return False
+
+
 def rollouts(run_dir, everything=False):
     """Rollout dirs with a transcript and a verdict; only passing ones unless `everything`."""
     out = []
@@ -306,6 +319,13 @@ def main(argv=None):
         (f".{a.tag}" if a.tag and a.judge == "llm" else "")
     todo = [d for d in rollouts(a.run_dir, a.all)
             if not os.path.exists(os.path.join(out, f"{os.path.basename(d)}.{name}.json"))]
+    if a.view:   # each real rollout once (not the baseline's rescored copies), and v2/v4 only with a final report
+        todo = [d for d in todo if "rescored_from" not in _meta(d)]
+        if a.view in ("v2", "v4"):
+            missing = [d for d in todo if not _has_report(d)]
+            if missing:
+                print(f"{len(missing)} rollouts have no final report (make report-turns first); skipped")
+            todo = [d for d in todo if d not in missing]
     loaded, scaffold = {}, agent_system(a.run_dir)
     for d in todo:
         with open(os.path.join(d, "transcript.json")) as f:
@@ -387,9 +407,7 @@ def main(argv=None):
                     print(line, flush=True)
     finally:
         run.ledger_add(run_id, "settled", budget.spent, out, [a.model])
-        total = run.ledger_spent()
-        print(f"estimated API spend: this run ${budget.spent:.4f} of its ${a.max_usd:.2f} cap; all runs "
-              f"${total:.4f} of the approved ${approved:.2f}; remaining ${approved - total:.4f}")
+        run.report_spend(budget.spent, a.max_usd, stop.is_set())
     return 1 if stop.is_set() else 0
 
 

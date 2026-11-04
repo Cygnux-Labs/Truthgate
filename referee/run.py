@@ -94,6 +94,18 @@ def synthetic_mismatches():
     return code_mismatches("rules-v1.yaml", "suite")
 
 
+def report_spend(spent, cap, stopped, note=""):
+    """The run's estimated spend against its cap and the approved total; at the boundary, a banner nobody misses."""
+    total, approved = ledger_spent(), approved_usd()
+    print(f"estimated API spend: this run ${spent:.4f} of its ${cap:.2f} cap; all runs ${total:.4f} of the approved "
+          f"${approved:.2f}; remaining ${approved - total:.4f}")
+    if stopped and approved - total < 1.0:
+        bar = "=" * 78
+        print(f"\n{bar}\n$50 BOUNDARY REACHED: ${total:.2f} of the approved ${approved:.2f} is spent.\n"
+              f"Tell the owner now. Continue only after the owner's OK: make approve-next, then run the same command "
+              f"again.{(chr(10) + note) if note else ''}\n{bar}\n", flush=True)
+
+
 def approved_usd():
     """The total API spend the owner has approved (runs/approved-usd.txt), or None."""
     try:
@@ -189,6 +201,16 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     finally:
         box.remove()
     evidence = recorder.finish(run, outdir, rid)
+    transcript_sha = write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
+    if getattr(opts, "final_report", False) and hasattr(backend, "final_report") and result["status"] != "budget":
+        from referee import report_turn   # after the episode: the agent's report to its user, a signed event
+        try:
+            rec = backend.final_report()
+        except agent.BudgetExceeded as e:
+            write_json(os.path.join(outdir, "final_report.json"), {"error": "budget", "note": str(e)})
+        else:
+            report_turn.store(outdir, rec, recorder, transcript_sha,
+                              {"bundle_sha256": evidence["bundle_sha256"], "run_id": evidence["run_id"]})
     with open(os.path.join(outdir, "before.tar"), "wb") as f:
         f.write(before_tar)
     with open(os.path.join(outdir, "after.tar"), "wb") as f:
@@ -196,7 +218,6 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     before, after = sandbox.read_tar(before_tar, root=""), sandbox.read_tar(after_tar)
     checks = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"],
                            sandbox.links_of(after))
-    write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
     write_json(os.path.join(outdir, "meta.json"), {"rollout_id": rid, "task_id": task["task_id"], "variant": variant,
                                                     "model": model, "result": result, "usage": backend.usage,
                                                     "condition": opts.condition, "rules": opts.rules})
@@ -237,9 +258,12 @@ def main(argv=None):
     ap.add_argument("--max-attempts", type=int, default=3)
     ap.add_argument("--time-limit", type=int, default=900, help="seconds per rollout")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--no-final-report", action="store_true",
+                    help="skip the final-report turn after each API episode (amendment 4b)")
     ap.add_argument("--unsigned-smoke", action="store_true",
                     help=f"local model only, at most {SMOKE_MAX} rollouts, unsigned stand-in recorder")
     opts = ap.parse_args(argv)
+    opts.final_report = opts.backend == "anthropic" and not opts.no_final_report
     models, variants = opts.models.split(","), opts.variants.split(",")
     rule_set, rules_sha = rules.load_rules(os.path.join(ROOT, opts.rules))
     if opts.condition and opts.max_attempts != conditions.MAX_ATTEMPTS:
@@ -338,13 +362,8 @@ def main(argv=None):
     finally:
         if opts.backend == "anthropic":
             ledger_add(run_id, "settled", budget.spent, opts.out, models)
-            total, approved = ledger_spent(), approved_usd()
-            if stop.is_set() and approved - total < 1.0:
-                print(f"reached the approved ${approved:.2f} boundary: tell the owner, and wait for the next $50 step "
-                      f"in {APPROVED} before the next chunk (rollouts cut short are in {opts.out}/_budget_cut and "
-                      "run again then)")
-            print(f"estimated API spend: this run ${budget.spent:.4f} of its ${opts.max_usd:.2f} cap; all runs "
-                  f"${total:.4f} of the approved ${approved:.2f}; remaining ${approved - total:.4f}")
+            report_spend(budget.spent, opts.max_usd, stop.is_set(),
+                         f"rollouts cut short are in {opts.out}/_budget_cut and run again then")
     return 1 if stop.is_set() else 0
 
 
