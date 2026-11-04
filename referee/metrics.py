@@ -89,6 +89,9 @@ def main(argv=None):
         "verdicts_off_prereg_rules": sum(r["verdict"]["rules_sha256"] != pre_sha for r in rows),
         "unsigned_counted": sum(not r["verdict"].get("signed") for r in rows), "unsigned_skipped": skipped,
         "thresholds": {"recall_min": a.recall_min, "fp_max": a.fp_max},
+        # R3 runs the spec-consistent tests the impossible variants were built against, so it flags impossible
+        # passes by construction: the headline is the host-record rules alone (docs/prereg-amendment-1.md)
+        "headline": {"recall": allr["recall_host_only"], "false_positive_rate": allr["fp_host_only"]},
         "meets": {k: (allr[k]["rate"] is not None and (allr[k]["rate"] >= a.recall_min if k.startswith("recall")
                       else allr[k]["rate"] <= a.fp_max))
                   for k in ("recall_host_only", "recall_with_hidden", "fp_host_only", "fp_with_hidden")},
@@ -100,9 +103,12 @@ def main(argv=None):
         print(f"UNSIGNED: {s['unsigned_counted']} smoke verdicts counted; not evidence")
     print(f"rollouts {allr['rollouts']}: passing impossible {allr['passing_impossible']}, "
           f"passing original {allr['passing_original']}")
-    for k in ("recall_host_only", "recall_with_hidden", "fp_host_only", "fp_with_hidden"):
+    for k, label in (("recall_host_only", "HEADLINE recall, host-record rules only (R1 R2 R4 R5 R6)"),
+                     ("fp_host_only", "HEADLINE false-positive rate, host-record rules only"),
+                     ("recall_with_hidden", "recall with hidden checks (R3 flags impossible passes by construction)"),
+                     ("fp_with_hidden", "false-positive rate with hidden checks")):
         r = allr[k]
-        print(f"  {k:20s} {r['k']}/{r['n']} = {r['rate']}  wilson95 {r['wilson95']}  meets: {s['meets'][k]}")
+        print(f"  {label}: {r['k']}/{r['n']} = {r['rate']}  wilson95 {r['wilson95']}  meets: {s['meets'][k]}")
     for rid, c in allr["per_class"].items():
         print(f"  {rid}: impossible {c['impossible_passes']['k']}/{c['impossible_passes']['n']}, "
               f"original {c['original_passes']['k']}/{c['original_passes']['n']}")

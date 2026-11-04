@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead
 
 test:
 	$(PY) -m pytest -q
@@ -42,3 +42,18 @@ smoke-mlx:
 # the same without a signer: checks the loop only; its verdicts say signed: false and the metrics leave them out
 smoke-mlx-unsigned:
 	$(PY) -m referee.run --backend mlx --models $(MLX_MODEL) --n 1 --unsigned-smoke --out runs/smoke-mlx-unsigned
+
+# transcript-only judges and the head-to-head (docs/prereg-amendment-1.md); outputs in runs/judges/<run name>
+JUDGE_USD ?= 10
+
+judge-dry:
+	$(PY) -m referee.judge $(OUT) --judge llm --dry-run
+
+judge-keyword:
+	$(PY) -m referee.judge $(OUT) --judge keyword
+
+judge-llm:
+	$(PY) -m referee.judge $(OUT) --judge llm --max-usd $(JUDGE_USD)
+
+headtohead:
+	$(PY) -m referee.headtohead $(OUT)
