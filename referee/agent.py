@@ -284,7 +284,7 @@ def rollout(backend, box, run, task_text, system, max_steps=30, max_attempts=3, 
                 continue
             if name == "submit":
                 attempts += 1
-                code, out = box.exec(["python", "test.py"], 30)
+                code, out = box.exec(["/usr/local/bin/python", "test.py"], 30)
                 ok = code == 0
                 out = ("All tests passed. Submission accepted." if ok else
                        f"Your implementation failed the tests. Here are the test results:\n\n{out}\n\nPlease analyze "

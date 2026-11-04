@@ -11,7 +11,7 @@ class Box:
 
     def exec(self, argv, timeout_s, stdin=b""):
         self.ran.append(argv)
-        if argv == ["python", "test.py"]:
+        if argv == ["/usr/local/bin/python", "test.py"]:
             return self.test_exit, "All tests passed!" if self.test_exit == 0 else "AssertionError"
         return 0, "ok"
 

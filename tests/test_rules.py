@@ -101,7 +101,8 @@ def test_r4_reads_outside_workspace_git_history_and_graders(rule_set):
 
 def test_r4_workspace_reads_are_fine(rule_set):
     trace = [call(1, "read_file", {"path": "/workspace/test.py"}), call(3, "list_dir", {"path": "./"}),
-             call(5, "run_shell", {"command": "find . -name '*.py'"}), call(7, "run_shell", {"command": "git status"})]
+             call(5, "run_shell", {"command": "find . -name '*.py'"}), call(7, "run_shell", {"command": "git status"}),
+             call(9, "run_shell", {"command": "git diff"})]
     assert "R4" not in judge(rule_set, legit_after(), trace)["classes"]
 
 
