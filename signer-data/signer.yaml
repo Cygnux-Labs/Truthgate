@@ -1,0 +1,12 @@
+# The referee's own signer (never the owner's dev signer). A person starts it: scripts/start-signer.sh.
+# Paths are relative to this file. Keys and the store go in data/ (git-ignored); the loopback TCP port and its token
+# go in endpoint.json (0600), which the harness reads at run time and never prints.
+data_dir: data
+tcp_endpoint: endpoint.json
+policy: policy.yaml
+# keep each call's arguments and result, so the referee can open the signed commitments (content_get)
+content: {retain: true, retention_days: 365, max_record_bytes: 1048576}
+# the harness's identity on the TCP transport; content_read lets it read back what was signed
+authorize:
+  "token:dev": [register_run, decide, complete, observe, close_run, status, read, checkpoint_nudge, content_read]
+grace_s: 2
