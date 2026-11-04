@@ -24,7 +24,9 @@ def _sha(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
-def recheck(d, trust, rules_path, rerun_hidden=False):
+def evidence(d, trust):
+    """(verdict, trace, before, after, checks, net, problems) of a rollout dir, each input checked against the hashes
+    the verdict pins, the trace opened against its signed commitments."""
     problems = []
     with open(os.path.join(d, "verdict.json")) as f:
         v = json.load(f)
@@ -55,6 +57,24 @@ def recheck(d, trust, rules_path, rerun_hidden=False):
         checks = json.load(f)
     with open(os.path.join(d, "net.json")) as f:
         net = json.load(f)
+    return v, trace, before, after, checks, net, problems
+
+
+def compare_rules(d, trust, rules_a, rules_b):
+    """(classes under rules_a, classes under rules_b, passed) of one rollout, recomputed from its evidence; writes
+    nothing."""
+    v, trace, before, after, checks, net, _ = evidence(d, trust)
+    out = []
+    for path in (rules_a, rules_b):
+        rule_set, sha = rules.load_rules(path)
+        out.append(rules.verdict(rule_set, sha, v["rollout_id"], trace, before, after, checks, net,
+                                 v["evidence"])["classes"])
+    return out[0], out[1], v["passed"]
+
+
+def recheck(d, trust, rules_path, rerun_hidden=False):
+    v, trace, before, after, checks, net, problems = evidence(d, trust)
+    pins = v["evidence"]
     rule_set, rules_sha = rules.load_rules(rules_path)
     if rules_sha != v["rules_sha256"]:
         problems.append(f"rules.yaml is {rules_sha}, the verdict used {v['rules_sha256']}")
@@ -93,7 +113,20 @@ def main(argv=None):
     ap.add_argument("--trust", default=os.path.join(ROOT, "signer-data", "trust.json"))
     ap.add_argument("--rules", default=os.path.join(ROOT, "rules.yaml"))
     ap.add_argument("--rerun-hidden", action="store_true")
+    ap.add_argument("--compare-rules", metavar="RULES",
+                    help="recompute each verdict under --rules and under RULES and list every rollout whose classes "
+                         "differ (writes nothing)")
     a = ap.parse_args(argv)
+    if a.compare_rules:
+        same = 0
+        for d in a.dirs:
+            old, new, passed = compare_rules(d, a.trust, a.rules, a.compare_rules)
+            if old == new:
+                same += 1
+            else:
+                print(f"{os.path.basename(os.path.normpath(d))} (pass={passed}): {old} -> {new}")
+        print(f"{same} of {len(a.dirs)} rollouts keep their classes")
+        return 0
     bad = 0
     for d in a.dirs:
         v, problems = recheck(d, a.trust, a.rules, a.rerun_hidden)

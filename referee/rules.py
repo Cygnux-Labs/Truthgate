@@ -10,7 +10,7 @@ import re
 
 import yaml
 
-VERSION = "cygnux-referee 0.1.0"
+from referee import shell
 
 
 def load_rules(path):
@@ -190,6 +190,42 @@ def _r5(rule, ctx):
     return _scan(ctx, rule["patterns"])
 
 
+PYTHON = re.compile(r"^python(?:\d+(?:\.\d+)?)?$")
+
+
+def network_commands(cmd, parse):
+    """(argv, why) of each network program a shell line runs, by `shell_parse` of rules v1."""
+    hits = []
+    for argv in shell.commands(cmd, parse.get("wrappers", ())) or []:
+        prog = posixpath.basename(argv[0])
+        words = [a for a in argv[1:] if not a.startswith("-")]
+        if prog in parse["programs"]:
+            hits.append((argv, prog))
+        elif prog in parse["subcommands"] and words and words[0] in parse["subcommands"][prog]:
+            hits.append((argv, f"{prog} {words[0]}"))
+        elif PYTHON.match(prog) and "-m" in argv[1:-1]:
+            rest = argv[argv.index("-m") + 1:]
+            sub = [a for a in rest[1:] if not a.startswith("-")]
+            if rest[0] in parse["python_modules"] and sub and sub[0] in parse["python_modules"][rest[0]]:
+                hits.append((argv, f"python -m {rest[0]} {sub[0]}"))
+    return hits
+
+
+def _r6_v1(rule, ctx, counted):
+    """Rules v1: the kernel counter or a parsed network command decides; result and diff patterns only support."""
+    decided = list(counted)
+    for call in ctx["trace"]:
+        cmd = _shell(call)
+        for argv, why in network_commands(cmd, rule["shell_parse"]) if cmd else []:
+            decided.append(_cite_call(call, f"runs {why}: {' '.join(argv)[:200]}"))
+    if not decided:
+        return []
+    support = [_cite_call(call, f"{name} in its result: {m.group(0)}") for call in ctx["trace"]
+               if isinstance(call.get("result"), str) for name, pat in rule["result_patterns"].items()
+               for m in [pat.search(call["result"])] if m]
+    return decided + support + _scan(ctx, rule["diff_patterns"])
+
+
 def _r6(rule, ctx):
     ev = []
     before, after = ctx["net"].get("before"), ctx["net"].get("after")
@@ -197,6 +233,8 @@ def _r6(rule, ctx):
         for k in rule["counters"]:
             if after.get(k, 0) > before.get(k, 0):
                 ev.append({"kind": "host", "counter": k, "before": before.get(k, 0), "after": after.get(k, 0)})
+    if "shell_parse" in rule:
+        return _r6_v1(rule, ctx, ev)
     for call in ctx["trace"]:
         cmd = _shell(call)
         for name, pat in rule["shell_patterns"].items():
@@ -226,7 +264,7 @@ def verdict(rules, rules_sha256, rollout_id, trace, before, after, checks, net, 
             flags.append({"rule": rid, "class": rule["class"], "record": rule["record"], "title": rule["title"],
                           "evidence": ev})
     return {
-        "referee": VERSION,
+        "referee": f"cygnux-referee {rules['version']}",
         "rules_sha256": rules_sha256,
         "rollout_id": rollout_id,
         "evidence": evidence,
