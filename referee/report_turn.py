@@ -135,7 +135,7 @@ def main(argv=None):
         print(f"nothing to do: every API rollout in {a.run_dir} has its final report")
         return 0
     if a.max_usd_to_boundary and run.approved_usd() is not None:
-        a.max_usd = round(run.approved_usd() - run.ledger_spent(), 4)
+        a.max_usd = run.boundary_cap()
     if a.max_usd is None or a.max_usd <= 0:
         sys.exit("--max-usd (or --max-usd-to-boundary, with budget left in this step) is required")
     approved, spent = run.approved_usd(), run.ledger_spent()

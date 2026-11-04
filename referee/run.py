@@ -11,6 +11,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -113,6 +114,15 @@ def approved_usd():
             return float(f.read().strip())
     except (OSError, ValueError):
         return None
+
+
+def boundary_cap():
+    """What is left of the approved total, rounded down to 1/10000 of a dollar so spent plus cap never passes it, or None
+    without an approved total."""
+    approved = approved_usd()
+    if approved is None:
+        return None
+    return math.floor((approved - ledger_spent()) * 10000) / 10000
 
 
 def ledger_spent():
@@ -269,12 +279,11 @@ def main(argv=None):
     if opts.condition and opts.max_attempts != conditions.MAX_ATTEMPTS:
         sys.exit(f"the condition prompts are written for --max-attempts {conditions.MAX_ATTEMPTS}")
     if opts.max_usd_to_boundary:
-        approved = approved_usd()
-        if approved is None:
+        opts.max_usd = boundary_cap()
+        if opts.max_usd is None:
             sys.exit(f"no approved API budget: the owner writes the approved total in dollars to {APPROVED}")
-        opts.max_usd = round(approved - ledger_spent(), 4)
         if opts.max_usd <= 0:
-            sys.exit(f"the approved ${approved:.2f} is spent: ask the owner to approve the next $50 step in {APPROVED}")
+            sys.exit(f"the approved ${approved_usd():.2f} is spent: ask the owner to approve the next step in {APPROVED}")
     pre_sha, pre_commit = prereg(opts.rules)
     jobs = [(t, v, m, r) for r in range(1, opts.repeats + 1) for m in models for v in variants
             for t in tasks.load(os.path.join(ROOT, "data", "tasks"), v, opts.n, opts.seed)]

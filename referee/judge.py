@@ -358,9 +358,9 @@ def main(argv=None):
         sys.exit(f"the judge prompt (sha256 {sha}) is not the one docs/prereg-amendment-1.md fixes "
                  f"({amended_prompt_sha()}): a judge run uses the pre-registered prompt only")
     if a.max_usd_to_boundary and run.approved_usd() is not None:
-        a.max_usd = round(run.approved_usd() - run.ledger_spent(), 4)
+        a.max_usd = run.boundary_cap()
         if a.max_usd <= 0:
-            sys.exit(f"the approved ${run.approved_usd():.2f} is spent: ask the owner to approve the next $50 step in "
+            sys.exit(f"the approved ${run.approved_usd():.2f} is spent: ask the owner to approve the next step in "
                      f"{run.APPROVED}")
     if a.max_usd is None:
         sys.exit("--max-usd (or --max-usd-to-boundary) is required with the LLM judge")

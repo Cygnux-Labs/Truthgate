@@ -50,6 +50,16 @@ def test_a_run_that_never_settled_counts_at_its_whole_cap(ledger):
     assert run.ledger_spent() == pytest.approx(14.5)
 
 
+def test_the_boundary_cap_never_rounds_past_the_approved_total(ledger):
+    # 50 - 31.05214 = 18.94786, which round(…, 4) made 18.9479: spent plus that cap passed 50, so every
+    # --max-usd-to-boundary run refused itself
+    run.ledger_add("r", "reserved", 40, "runs/a", ["m"])
+    run.ledger_add("r", "settled", 31.05214, "runs/a", ["m"])
+    cap = run.boundary_cap()
+    assert cap == pytest.approx(18.9478)
+    assert run.ledger_spent() + cap <= run.approved_usd()
+
+
 class FakeBackend:
     def __init__(self, model, budget):
         self.budget, self.usage = budget, {}
