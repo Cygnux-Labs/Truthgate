@@ -37,7 +37,7 @@ def test_pilot_exits_with_the_key_message(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(run, "LEDGER", str(tmp_path / "spend-ledger.tsv"))
     monkeypatch.setattr(agent.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 44, "", ""))
     monkeypatch.setattr(run, "TracekitRecorder", lambda root: object())   # a signer, so the key check is reached
-    monkeypatch.setattr(run, "prereg", lambda: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
+    monkeypatch.setattr(run, "prereg", lambda *a: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
     with pytest.raises(SystemExit) as e:
         run.main(["--backend", "anthropic", "--models", "claude-haiku-5-5", "--n", "1", "--max-usd", "1",
                   "--out", str(tmp_path)])
@@ -63,7 +63,7 @@ def test_a_stale_endpoint_is_refused_not_bypassed(tmp_path):
 
 def test_run_refuses_real_rollouts_without_a_signer(monkeypatch, tmp_path):
     monkeypatch.setattr(run, "TracekitRecorder", lambda root: TracekitRecorder(str(tmp_path)))
-    monkeypatch.setattr(run, "prereg", lambda: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
+    monkeypatch.setattr(run, "prereg", lambda *a: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
     with pytest.raises(SystemExit) as e:
         run.main(["--backend", "mlx", "--models", "m", "--n", "1", "--variants", "original", "--out", str(tmp_path)])
     assert str(e.value).startswith("refusing to run: no referee signer running")
@@ -71,7 +71,7 @@ def test_run_refuses_real_rollouts_without_a_signer(monkeypatch, tmp_path):
 
 
 def test_run_refuses_rules_that_are_not_the_preregistered_ones(monkeypatch, tmp_path):
-    monkeypatch.setattr(run, "prereg", lambda: ("0" * 64, "c"))
+    monkeypatch.setattr(run, "prereg", lambda *a: ("0" * 64, "c"))
     with pytest.raises(SystemExit) as e:
         run.main(["--backend", "mlx", "--models", "m", "--n", "1", "--out", str(tmp_path)])
     assert "pre-registered" in str(e.value)

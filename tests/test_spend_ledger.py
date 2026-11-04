@@ -13,7 +13,7 @@ def ledger(monkeypatch, tmp_path):
     (tmp_path / "approved-usd.txt").write_text("50\n")
     monkeypatch.setattr(run, "APPROVED", str(tmp_path / "approved-usd.txt"))
     monkeypatch.setattr(run, "LEDGER", str(tmp_path / "spend-ledger.tsv"))
-    monkeypatch.setattr(run, "prereg", lambda: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
+    monkeypatch.setattr(run, "prereg", lambda *a: (run.rules.load_rules(run.os.path.join(run.ROOT, "rules.yaml"))[1], "c"))
     return tmp_path
 
 
@@ -64,7 +64,7 @@ def fake_signed_run(monkeypatch, one):
 
 
 def test_each_run_is_written_to_the_ledger_and_prints_what_remains(ledger, monkeypatch, capsys):
-    def one(task, variant, model, factory, *rest):
+    def one(task, variant, model, factory, *rest, **kw):
         factory(model).spend(0.25)
         return "rid", "submitted_pass; pass=True flags=[]"
     fake_signed_run(monkeypatch, one)
@@ -79,10 +79,23 @@ def test_each_run_is_written_to_the_ledger_and_prints_what_remains(ledger, monke
 
 
 def test_an_interrupted_run_still_settles_what_it_spent(ledger, monkeypatch):
-    def one(task, variant, model, factory, *rest):
+    def one(task, variant, model, factory, *rest, **kw):
         factory(model).spend(0.1)
         raise KeyboardInterrupt
     fake_signed_run(monkeypatch, one)
     with pytest.raises(KeyboardInterrupt):
         run.main(ARGS + ["--max-usd", "3", "--out", str(ledger / "out")])
     assert run.ledger_spent() == pytest.approx(0.1)
+
+
+def test_cap_to_boundary_takes_what_is_left(ledger, monkeypatch):
+    run.ledger_add("old", "reserved", 30, "runs/a", ["m"])
+    run.ledger_add("old", "settled", 31.5, "runs/a", ["m"])
+    monkeypatch.setattr(run, "TracekitRecorder", no_signer)
+    with pytest.raises(SystemExit) as e:   # $18.50 left: it fits, so the next stop is the signer check
+        run.main(ARGS + ["--max-usd-to-boundary", "--out", str(ledger / "out")])
+    assert "no referee signer" in str(e.value)
+    run.ledger_add("more", "reserved", 18.5, "runs/b", ["m"])
+    with pytest.raises(SystemExit) as e:
+        run.main(ARGS + ["--max-usd-to-boundary", "--out", str(ledger / "out")])
+    assert "the approved $50.00 is spent" in str(e.value)

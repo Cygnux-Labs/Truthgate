@@ -20,7 +20,7 @@ import threading
 import time
 import traceback
 
-from referee import agent, rules, sandbox, tasks
+from referee import agent, conditions, rules, sandbox, tasks
 from referee.recorder import FakeRecorder, SignerMissing, TracekitRecorder
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,16 +43,24 @@ def write_json(path, obj):
     return sha(data)
 
 
-def prereg():
-    """(rules sha256 written in docs/prereg.md, the commit that last changed it), or (None, None)."""
-    path = os.path.join(ROOT, "docs", "prereg.md")
+PREREGS = {"rules.yaml": "docs/prereg.md", "rules-v1.yaml": "docs/prereg-v1.md"}
+
+
+def prereg(rules_name="rules.yaml", condition=None):
+    """(the sha256 the pre-registration of `rules_name` fixes for it, the commit that last changed that file), or
+    Nones. With `condition`, the sha256 it fixes for that condition's prompt file instead."""
+    doc = PREREGS.get(rules_name)
+    if not doc:
+        return None, None
     try:
-        with open(path) as f:
-            m = re.search(r"rules\.yaml sha256: `([0-9a-f]{64})`", f.read())
-        commit = subprocess.run(["git", "-C", ROOT, "log", "-1", "--format=%H", "--", "docs/prereg.md"],
+        with open(os.path.join(ROOT, doc)) as f:
+            text = f.read()
+        commit = subprocess.run(["git", "-C", ROOT, "log", "-1", "--format=%H", "--", doc],
                                 capture_output=True, text=True).stdout.strip()
     except OSError:
         return None, None
+    what = f"condition `{condition}`" if condition else re.escape(rules_name)
+    m = re.search(what + r" sha256: `([0-9a-f]{64})`", text)
     return (m.group(1) if m else None), (commit or None)
 
 
@@ -118,14 +126,18 @@ def hidden_checks(task, after_files, rule_set, confirm_runs):
     return checks
 
 
-def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, out, opts):
-    rid = f"{model.split('/')[-1]}__{variant}__{task['task_id']}"
+def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, out, opts, rep=1):
+    rid = f"{model.split('/')[-1]}__{variant}__{task['task_id']}" + (f"__rep{rep}" if rep > 1 else "")
     outdir = os.path.join(out, rid)
     if os.path.exists(os.path.join(outdir, "verdict.json")):
         return rid, "done before"
     os.makedirs(outdir, exist_ok=True)
     files = tasks.workspace(task)
-    task_text = tasks.INSTRUCTION
+    if opts.condition:
+        system, task_text, _ = conditions.load(opts.condition)
+    else:   # the pilot's prompts, which conditions/baseline.txt reproduces byte for byte
+        system = agent.SYSTEM.format(instruction=tasks.INSTRUCTION, max_attempts=opts.max_attempts)
+        task_text = tasks.INSTRUCTION
     before_tar = sandbox.make_tar(files)
     box = sandbox.Sandbox(re.sub(r"[^a-z0-9]+", "-", rid.lower())[:40], opts.time_limit + 300)
     backend = backend_factory(model)
@@ -135,7 +147,6 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
         box.start(files)
         net = {"before": box.net_counters()}
         run = recorder.start(rid, task_text)
-        system = agent.SYSTEM.format(instruction=tasks.INSTRUCTION, max_attempts=opts.max_attempts)
         try:
             result = agent.rollout(backend, box, run, task_text, system, max_steps=opts.max_steps,
                                    max_attempts=opts.max_attempts, time_limit_s=opts.time_limit)
@@ -156,7 +167,8 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     checks = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"])
     write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
     write_json(os.path.join(outdir, "meta.json"), {"rollout_id": rid, "task_id": task["task_id"], "variant": variant,
-                                                    "model": model, "result": result, "usage": backend.usage})
+                                                    "model": model, "result": result, "usage": backend.usage,
+                                                    "condition": opts.condition, "rules": opts.rules})
     pins = {"signed": evidence["signed"], "run_id": evidence["run_id"], "bundle": evidence.get("bundle"),
             "bundle_sha256": evidence["bundle_sha256"], "opening": evidence.get("opening"),
             "opening_sha256": evidence.get("opening") and
@@ -169,6 +181,10 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     record = recorder.record_verdict(v, outdir)
     write_json(os.path.join(outdir, "verdict.record.json"), record)
     write_json(os.path.join(outdir, "verdict.json"), v)
+    if result["status"] == "budget":   # cut short by the cap: kept for audit, out of the results, run again next chunk
+        cut = os.path.join(out, "_budget_cut", f"{rid}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}")
+        os.makedirs(os.path.dirname(cut), exist_ok=True)
+        os.rename(outdir, cut)
     return rid, f"{result['status']}; pass={v['passed']} flags={v['classes']}"
 
 
@@ -178,8 +194,13 @@ def main(argv=None):
     ap.add_argument("--models", required=True, help="comma-separated model ids")
     ap.add_argument("--variants", default=",".join(tasks.VARIANTS))
     ap.add_argument("--n", type=int, default=30, help="tasks per variant")
+    ap.add_argument("--repeats", type=int, default=1, help="rollouts per (model, variant, task); repeats get __repN")
     ap.add_argument("--seed", type=int, default=20261104)
     ap.add_argument("--max-usd", type=float, default=None, help="hard cap on estimated API spend (required for anthropic)")
+    ap.add_argument("--max-usd-to-boundary", action="store_true",
+                    help="cap this run at what is left of the owner-approved total (runs/approved-usd.txt)")
+    ap.add_argument("--condition", choices=conditions.NAMES, help="study v1: the prompts of prompts/conditions/")
+    ap.add_argument("--rules", default="rules.yaml", help="rules file, relative to the project (study v1: rules-v1.yaml)")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--max-steps", type=int, default=30)
     ap.add_argument("--max-attempts", type=int, default=3)
@@ -189,9 +210,18 @@ def main(argv=None):
                     help=f"local model only, at most {SMOKE_MAX} rollouts, unsigned stand-in recorder")
     opts = ap.parse_args(argv)
     models, variants = opts.models.split(","), opts.variants.split(",")
-    rule_set, rules_sha = rules.load_rules(os.path.join(ROOT, "rules.yaml"))
-    pre_sha, pre_commit = prereg()
-    jobs = [(t, v, m) for m in models for v in variants
+    rule_set, rules_sha = rules.load_rules(os.path.join(ROOT, opts.rules))
+    if opts.condition and opts.max_attempts != conditions.MAX_ATTEMPTS:
+        sys.exit(f"the condition prompts are written for --max-attempts {conditions.MAX_ATTEMPTS}")
+    if opts.max_usd_to_boundary:
+        approved = approved_usd()
+        if approved is None:
+            sys.exit(f"no approved API budget: the owner writes the approved total in dollars to {APPROVED}")
+        opts.max_usd = round(approved - ledger_spent(), 4)
+        if opts.max_usd <= 0:
+            sys.exit(f"the approved ${approved:.2f} is spent: ask the owner to approve the next $50 step in {APPROVED}")
+    pre_sha, pre_commit = prereg(opts.rules)
+    jobs = [(t, v, m, r) for r in range(1, opts.repeats + 1) for m in models for v in variants
             for t in tasks.load(os.path.join(ROOT, "data", "tasks"), v, opts.n, opts.seed)]
     if opts.backend == "anthropic" and not opts.unsigned_smoke:
         if opts.max_usd is None:
@@ -209,8 +239,11 @@ def main(argv=None):
         recorder = FakeRecorder()
     else:
         if pre_sha != rules_sha:
-            sys.exit(f"rules.yaml (sha256 {rules_sha}) is not the one docs/prereg.md fixes ({pre_sha}): a signed run "
-                     "uses the pre-registered rules only")
+            sys.exit(f"{opts.rules} (sha256 {rules_sha}) is not the one {PREREGS.get(opts.rules)} fixes ({pre_sha}): "
+                     "a signed run uses the pre-registered rules only")
+        if opts.condition and prereg(opts.rules, opts.condition)[0] != conditions.load(opts.condition)[2]:
+            sys.exit(f"prompts/conditions/{opts.condition}.txt is not the one {PREREGS.get(opts.rules)} fixes: a "
+                     "signed run uses the pre-registered prompts only")
         try:
             recorder = TracekitRecorder(ROOT)
         except SignerMissing as e:
@@ -233,6 +266,9 @@ def main(argv=None):
     os.makedirs(opts.out, exist_ok=True)
     write_json(os.path.join(opts.out, "manifest.json"), {
         "backend": opts.backend, "models": models, "variants": variants, "n": opts.n, "seed": opts.seed,
+        "repeats": opts.repeats,
+        "condition": opts.condition, "condition_sha256": opts.condition and conditions.load(opts.condition)[2],
+        "rules": opts.rules,
         "max_usd": opts.max_usd, "rules_sha256": rules_sha, "prereg_rules_sha256": pre_sha,
         "prereg_commit": pre_commit, "signed": recorder.signed, "max_steps": opts.max_steps,
         "max_attempts": opts.max_attempts, "time_limit_s": opts.time_limit,
@@ -240,11 +276,11 @@ def main(argv=None):
         "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
     stop = threading.Event()
 
-    def job(t, v, m):
+    def job(t, v, m, r):
         if stop.is_set():
             return None
         try:
-            rid, msg = one(t, v, m, factory, recorder, rule_set, rules_sha, opts.out, opts)
+            rid, msg = one(t, v, m, factory, recorder, rule_set, rules_sha, opts.out, opts, r)
         except SignerMissing as e:
             stop.set()
             return f"STOP (no unsigned evidence): {e}"
@@ -266,6 +302,10 @@ def main(argv=None):
         if opts.backend == "anthropic":
             ledger_add(run_id, "settled", budget.spent, opts.out, models)
             total, approved = ledger_spent(), approved_usd()
+            if stop.is_set() and approved - total < 1.0:
+                print(f"reached the approved ${approved:.2f} boundary: tell the owner, and wait for the next $50 step "
+                      f"in {APPROVED} before the next chunk (rollouts cut short are in {opts.out}/_budget_cut and "
+                      "run again then)")
             print(f"estimated API spend: this run ${budget.spent:.4f} of its ${opts.max_usd:.2f} cap; all runs "
                   f"${total:.4f} of the approved ${approved:.2f}; remaining ${approved - total:.4f}")
     return 1 if stop.is_set() else 0

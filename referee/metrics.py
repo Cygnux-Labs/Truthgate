@@ -81,7 +81,12 @@ def main(argv=None):
     ap.add_argument("--fp-max", type=float, default=0.03)
     a = ap.parse_args(argv)
     rows, skipped = load(a.out, a.allow_unsigned)
-    pre_sha, pre_commit = prereg()
+    try:
+        with open(os.path.join(a.out, "manifest.json")) as f:
+            rules_name = json.load(f).get("rules") or "rules.yaml"
+    except OSError:
+        rules_name = "rules.yaml"
+    pre_sha, pre_commit = prereg(rules_name)
     s = summarise(rows)
     allr = s["all"]
     s.update({

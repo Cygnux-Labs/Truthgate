@@ -58,7 +58,8 @@ TOOLS = [
 ]
 
 # USD per million tokens (input, output); Haiku's second pair applies past 100K input tokens in one request
-PRICES = {"claude-sonnet-5-5": ((2.00, 10.00), None), "claude-haiku-5-5": ((0.10, 0.50), (0.50, 2.50))}
+PRICES = {"claude-opus-5-5": ((4.00, 20.00), None), "claude-sonnet-5-5": ((2.00, 10.00), None),
+          "claude-haiku-5-5": ((0.10, 0.50), (0.50, 2.50))}
 MAX_TOKENS = 16000
 KEY_MISSING = ('no Anthropic API key in the macOS Keychain (service "anthropic-api-key"). Add it from your own '
                'terminal; it prompts for the key and echoes nothing:\n'

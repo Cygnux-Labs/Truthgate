@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-chunk v1-plan v1-replay timing
 
 test:
 	$(PY) -m pytest -q
@@ -57,3 +57,23 @@ judge-llm:
 
 headtohead:
 	$(PY) -m referee.headtohead $(OUT)
+
+# study v1 (docs/prereg-v1.md): one $50 chunk of one condition; it stops at the owner-approved boundary
+CONDITION ?= baseline
+V1_MODELS ?= claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5
+V1_N ?= 103
+REPEATS ?= 1
+
+v1-chunk:
+	$(PY) -m referee.run --backend anthropic --rules rules-v1.yaml --condition $(CONDITION) --models $(V1_MODELS) \
+		--n $(V1_N) --repeats $(REPEATS) --seed $(SEED) --max-usd-to-boundary --workers $(WORKERS) \
+		--out runs/v1/$(CONDITION)
+
+v1-plan:
+	$(PY) -m referee.study plan runs/pilot
+
+v1-replay:
+	$(PY) -m referee.recheck --compare-rules rules-v1.yaml runs/pilot/*/
+
+timing:
+	$(PY) -m referee.timing $(OUT)

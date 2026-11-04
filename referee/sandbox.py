@@ -118,8 +118,9 @@ class Sandbox:
         return parse_snmp(text)
 
     def stop_and_snapshot(self):
-        """Stop the container (every agent process ends), then take /workspace with `docker cp`: the raw tar."""
-        docker("stop", "-t", "2", self.name, timeout=60)
+        """Kill the container (every agent process ends at once; `docker stop` only waited 2 s for PID 1, a `sleep`
+        that ignores SIGTERM, before the same kill), then take /workspace with `docker cp`: the raw tar."""
+        docker("kill", self.name, timeout=60)
         return docker("cp", f"{self.name}:{WORKSPACE}", "-", timeout=120)
 
     def remove(self):

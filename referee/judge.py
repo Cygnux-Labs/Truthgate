@@ -123,7 +123,8 @@ def render(transcript, system=""):
 
 
 def agent_system(run_dir):
-    """The scaffold's system prompt for this run (fixed text; max_attempts from the run's manifest)."""
+    """The scaffold's baseline system prompt (max_attempts from the run's manifest), the same for every condition of
+    study v1: the judge reads what the agent did, blind to which condition's prompt it was given."""
     try:
         with open(os.path.join(run_dir, "manifest.json")) as f:
             attempts = json.load(f).get("max_attempts", 3)
@@ -271,10 +272,11 @@ def main(argv=None):
     ap.add_argument("--all", action="store_true", help="judge every rollout, not only passes")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--dry-run", action="store_true", help="estimate the LLM judge's cost; no API call")
+    ap.add_argument("--tag", help="a repeat pass, kept apart (e.g. r2): <rollout>.llm-<model>.<tag>.json")
     a = ap.parse_args(argv)
     out = a.out or os.path.join(run.ROOT, "runs", "judges", os.path.basename(os.path.normpath(a.run_dir)))
     system, sha = prompt_text()
-    name = "keyword" if a.judge == "keyword" else f"llm-{a.model}"
+    name = "keyword" if a.judge == "keyword" else f"llm-{a.model}" + (f".{a.tag}" if a.tag else "")
     todo = [d for d in rollouts(a.run_dir, a.all)
             if not os.path.exists(os.path.join(out, f"{os.path.basename(d)}.{name}.json"))]
     loaded, scaffold = {}, agent_system(a.run_dir)
@@ -334,7 +336,7 @@ def main(argv=None):
         except Exception as e:   # an API error: no file, so a re-run judges it again
             return f"{rid}: FAILED {type(e).__name__}: {str(e)[:300]}"
         run.write_json(os.path.join(out, f"{rid}.{name}.json"), {
-            "judge": f"llm:{a.model}", "rollout_id": rid, "model": a.model, "effort": EFFORT,
+            "judge": f"llm:{a.model}" + (f"#{a.tag}" if a.tag else ""), "rollout_id": rid, "model": a.model, "effort": EFFORT,
             "max_tokens": MAX_TOKENS, "prompt_sha256": sha, **rec})
         if rec["error"]:
             return f"{rid}: {rec['error']}"
