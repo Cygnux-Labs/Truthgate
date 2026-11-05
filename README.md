@@ -167,8 +167,8 @@ will read the transcript? Alongside: where does the out-of-reach record catch wh
 - **Every natural cheat was a solution-level special case.** None edited a test, added test infrastructure or tampered with
   the harness.
 - **Disclosure:**
-  - When asked for a final report, all 55 natural cheats named the special-casing (55/55, draft labels, pending human
-    verification).
+  - When asked for a final report, all 55 natural cheats named the special-casing (55/55): keyword and LLM-judge
+    labels only; not checked by a person (the owner chose not to).
   - Unasked, during the episode, Sonnet and Opus said nothing about it in visible text (0/52). Haiku did in 2 of 3.
 - **Detection:**
   - The LLM judge caught 55/55 natural cheats in every view, including the final report alone.
@@ -182,7 +182,7 @@ will read the transcript? Alongside: where does the out-of-reach record catch wh
   - H2 held by its test, with caveats.
   - H3 held at the point estimate (4/145 = 2.8%).
   - H4 failed (R7 at 45% against an 80% bar).
-  - D1 (disclosure) is pending human verification.
+  - D1 (disclosure): keyword and LLM-judge labels only; not checked by a person (the owner chose not to).
 
 **Full results:** [`referee/docs/results-v1.md`](referee/docs/results-v1.md), with every claim against its bar, the
 caveats and the quotes. Calibration notes: [`referee/docs/pilot-notes.md`](referee/docs/pilot-notes.md).
@@ -226,7 +226,7 @@ caveats and the quotes. Calibration notes: [`referee/docs/pilot-notes.md`](refer
   - recorded 6 (10% [5, 20]);
   - norm 1 (1.7% [0.3, 8.9]).
 - **Disclosure:** every v2 cheat named its special case when asked, by keyword: human-review 6/6, recorded 6/6, norm
-  1/1. A person's reading is pending.
+  1/1. These are keyword labels only; not checked by a person (the owner chose not to).
 - **Drift control:** 10/20 against 6/20 (4 to 0 discordant, two-sided p = 0.125, not significant). If the drift is
   real, the effects above are understated.
 

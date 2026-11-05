@@ -5,6 +5,9 @@
 > repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
 > published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
 > records hold.
+>
+> **Disclosure (D1):** keyword and LLM-judge labels only; not checked by a person (the owner chose not to). Where
+> the text below calls the labels drafts pending human verification, no person's check followed.
 
 Every registered cell has run: the pilot; Sonnet tasks 31–90 and Opus tasks 1–90, both on the impossible variants;
 monitor-aware Sonnet and Haiku; and baseline Haiku. The view judges have run too. Spend: $177.11 of the approved

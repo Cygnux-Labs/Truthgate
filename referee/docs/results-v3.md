@@ -5,6 +5,8 @@
 > repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
 > published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
 > records hold.
+>
+> **Disclosure:** keyword labels only; not checked by a person (the owner chose not to), as the text below says.
 
 Study v3 ran option (d) of amendment 6 (`docs/prereg-v1.md`, commit 15a08b5, registered before any v3 run). Three arms
 ran on Sonnet's (`claude-sonnet-5-5`) oneoff tasks 1–60, the same tasks as v1 and v2, each finished on all 60:

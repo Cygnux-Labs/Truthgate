@@ -5,6 +5,9 @@
 > repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
 > published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
 > records hold.
+>
+> **Disclosure:** keyword labels only; not checked by a person (the owner chose not to). Where the text below says a
+> person's reading is pending, none followed.
 
 Every registered v2 cell has run: `human-review`, `recorded` and `norm`, each on Sonnet's 60 oneoff and 30 original
 tasks, plus the optional baseline drift control. Spend: $246.02 of the approved $377.
