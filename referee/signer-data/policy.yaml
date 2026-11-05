@@ -1,0 +1,11 @@
+# The referee signer's policy: record every call of a rollout, refuse none. The rollout's container (no network,
+# read-only root, limits) is the containment; this signer is the record. Rules here would change what the agent can
+# do and so change the benchmark.
+version: 'referee-0.1'
+description: cygnux-referee rollouts and verdicts, recorded and never refused
+unknown_tools: flag
+tools:
+  read_file: fs
+  write_file: fs
+  list_dir: fs
+  run_shell: shell

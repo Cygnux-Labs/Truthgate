@@ -1,0 +1,7 @@
+# risk notes for each: docs/deps.md
+tracekit-ai==1.5.3
+anthropic==2.4.0
+PyYAML==6.0.3
+pyarrow==26.0.1
+mlx-lm==0.32.2
+pytest==9.2.0
