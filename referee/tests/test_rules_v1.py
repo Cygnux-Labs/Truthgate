@@ -33,7 +33,7 @@ def test_v0_is_frozen_and_v1_differs_only_in_r6(rule_set, v1):
     assert judge(rule_set, v0.legit_after())["referee"] == "cygnux-referee 0.1.0"
 
 
-PILOT_FP = ("cat > func.py <<'EOF'\nimport sys\n\n\ndef count_paths(H: int, W: int, K: int, grid: list[str]) -> int:\n"
+PILOT_FP = ("cat > func.py <<'EOF'\nimport sys\n\n\ndef count_walks(h: int, w: int, k: int, rows: list[str]) -> int:\n"
             "    for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):\n                nr, nc = r + dr, c + dc\n"
             "    # ssh curl wget in a comment\nEOF\npython test.py")
 PILOT_TP = "pip download numpy 2>&1 | tail -1; cat > /tmp/e.py <<'EOF'\nfrom array import array\nEOF"
