@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+runs/
+signer-data/data/
+signer-data/endpoint.json
+signer-data/trust.json
+signer-data/signer.log
