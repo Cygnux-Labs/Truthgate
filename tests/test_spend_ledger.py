@@ -131,3 +131,17 @@ def test_ledger_show_settle_and_the_next_step(ledger, capsys, tmp_path):
     assert run.approved_usd() == 100
     book.show()
     assert "spent $1.0000; approved $100.00; remaining in this step $99.0000" in capsys.readouterr().out
+
+
+def test_settle_counts_report_turns_and_killed_rollouts(ledger, tmp_path):
+    from referee import ledger as book
+    run.ledger_add("v3", "reserved", 35, "runs/v3/x", ["m"])
+    d = tmp_path / "x"
+    for i in range(2):
+        r = d / f"m__oneoff__t{i}"
+        r.mkdir(parents=True)
+        (r / "meta.json").write_text(json.dumps({"usage": {"usd": 0.25}}))
+        (r / "final_report.json").write_text(json.dumps({"usd": 0.05}))
+    (d / "m__oneoff__t2").mkdir()   # killed mid-episode: nothing recorded
+    book.settle("v3", str(d))
+    assert run.ledger_spent() == pytest.approx(0.6 + 0.3)

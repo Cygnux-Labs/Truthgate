@@ -27,11 +27,23 @@ def rows():
 
 
 def recorded_usd(run_dir):
-    """What a run's outputs say it spent: each rollout's meta.json usage, or each judge record's usd."""
-    total = 0.0
+    """What a run's outputs say it spent: each rollout's meta.json usage and its final-report turn, or each judge
+    record's usd. A rollout killed mid-episode (its directory, no meta.json) recorded nothing, so it counts at the mean
+    of the finished ones.
+    lean: an estimate for killed rollouts, below the truth when one was a long episode; use the API's usage report if a
+    settle must be exact."""
+    total, done = 0.0, 0
     for p in glob.glob(os.path.join(run_dir, "*", "meta.json")):
         with open(p) as f:
             total += json.load(f).get("usage", {}).get("usd", 0.0)
+        done += 1
+    for p in glob.glob(os.path.join(run_dir, "*", "final_report.json")):
+        with open(p) as f:
+            total += json.load(f).get("usd") or 0.0
+    killed = [d for d in glob.glob(os.path.join(run_dir, "*__*")) if os.path.isdir(d)
+              and not os.path.exists(os.path.join(d, "meta.json"))]
+    if killed and done:
+        total += len(killed) * total / done
     for p in glob.glob(os.path.join(run_dir, "*.llm-*.json")):
         with open(p) as f:
             total += json.load(f).get("usd") or 0.0
