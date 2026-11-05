@@ -145,3 +145,20 @@ def test_settle_counts_report_turns_and_killed_rollouts(ledger, tmp_path):
     (d / "m__oneoff__t2").mkdir()   # killed mid-episode: nothing recorded
     book.settle("v3", str(d))
     assert run.ledger_spent() == pytest.approx(0.6 + 0.3)
+
+
+def test_a_resumed_run_settles_only_the_rollouts_it_ran(ledger, tmp_path):
+    import os
+    from referee import ledger as book
+    d = tmp_path / "x"
+    old = d / "m__oneoff__t0"   # finished by an earlier run, already settled under that run
+    old.mkdir(parents=True)
+    (old / "meta.json").write_text(json.dumps({"usage": {"usd": 5.0}}))
+    for p in (old / "meta.json", old):
+        os.utime(p, (1_000_000_000, 1_000_000_000))
+    run.ledger_add("resumed", "reserved", 35, "runs/v3/x", ["m"])
+    new = d / "m__oneoff__t1"
+    new.mkdir()
+    (new / "meta.json").write_text(json.dumps({"usage": {"usd": 0.25}}))
+    book.settle("resumed", str(d))
+    assert run.ledger_spent() == pytest.approx(0.25)

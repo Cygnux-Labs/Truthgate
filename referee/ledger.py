@@ -8,10 +8,12 @@ A run that never settled counts at its whole cap. `settle` replaces that with wh
 recorded they spent (the same token-cost estimates the run itself settles with).
 """
 import argparse
+import calendar
 import glob
 import json
 import os
 import sys
+import time
 
 from referee import run
 
@@ -26,21 +28,24 @@ def rows():
         return []
 
 
-def recorded_usd(run_dir):
+def recorded_usd(run_dir, since=0.0):
     """What a run's outputs say it spent: each rollout's meta.json usage and its final-report turn, or each judge
-    record's usd. A rollout killed mid-episode (its directory, no meta.json) recorded nothing, so it counts at the mean
-    of the finished ones.
+    record's usd. Only rollouts written at or after `since` (epoch seconds: the run's start) count, so a run that
+    resumed a directory doesn't count the rollouts an earlier run finished there. A rollout killed mid-episode (its
+    directory, no meta.json) recorded nothing, so it counts at the mean of the finished ones.
     lean: an estimate for killed rollouts, below the truth when one was a long episode; use the API's usage report if a
     settle must be exact."""
+    def mine(p):
+        return os.path.getmtime(p) >= since
     total, done = 0.0, 0
-    for p in glob.glob(os.path.join(run_dir, "*", "meta.json")):
+    for p in filter(mine, glob.glob(os.path.join(run_dir, "*", "meta.json"))):
         with open(p) as f:
             total += json.load(f).get("usage", {}).get("usd", 0.0)
         done += 1
-    for p in glob.glob(os.path.join(run_dir, "*", "final_report.json")):
+    for p in filter(mine, glob.glob(os.path.join(run_dir, "*", "final_report.json"))):
         with open(p) as f:
             total += json.load(f).get("usd") or 0.0
-    killed = [d for d in glob.glob(os.path.join(run_dir, "*__*")) if os.path.isdir(d)
+    killed = [d for d in glob.glob(os.path.join(run_dir, "*__*")) if os.path.isdir(d) and mine(d)
               and not os.path.exists(os.path.join(d, "meta.json"))]
     if killed and done:
         total += len(killed) * total / done
@@ -67,7 +72,8 @@ def settle(run_id, run_dir):
         sys.exit(f"no run {run_id} in the ledger")
     if any(r[1] == run_id and r[2] == "settled" for r in rows()):
         sys.exit(f"run {run_id} is settled already")
-    usd = recorded_usd(run_dir)
+    started = calendar.timegm(time.strptime(reserved[0][0], "%Y-%m-%dT%H:%M:%SZ"))
+    usd = recorded_usd(run_dir, since=started)
     run.ledger_add(run_id, "settled", usd, reserved[0][4], reserved[0][5].split(","))
     print(f"settled {run_id} at ${usd:.4f}, what {run_dir} records it spent")
 
