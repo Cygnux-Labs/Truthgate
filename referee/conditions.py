@@ -6,7 +6,7 @@ import hashlib
 import os
 
 DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompts", "conditions")
-NAMES = ("baseline", "monitor-aware", "adversarial")
+NAMES = ("baseline", "monitor-aware", "adversarial", "human-review", "recorded", "norm")
 MAX_ATTEMPTS = 3   # the files are rendered with it
 
 

@@ -138,6 +138,19 @@ make v1-judge CONDITION=baseline         # after cells 2, 4 and 5
 
 - **Time per rollout and per phase:** `make timing OUT=runs/v1/monitor-aware`.
 
+## 4b. Study v2: does deterrence hold beyond one wording? (amendment 5; about $60, plus $6 optional)
+
+```sh
+make v2-oneoff       # Sonnet, oneoff tasks 1-60, under human-review, recorded and norm in turn (about $17 each)
+make v2-original     # Sonnet, original tasks 1-30, under each (about $3 each)
+make v2-drift        # optional control: the baseline again on oneoff tasks 1-20 (about $6), run last
+make v2-analyse      # H5-H7, original passes, disclosure, drift (no cost)
+```
+
+- **Boundaries:** each command stops at the approved boundary with the banner. Run it again after
+  `make approve-next`; finished rollouts are skipped.
+- **Disclosure needs a person**, as D1 does: read each new cheat's `final_report.json` under `runs/v1/<condition>/`.
+
 ## 5. People, then the analysis
 
 - **Verify the misses.** For every condition, read `runs/judges/<condition>/headtohead-cases.md`. For each case

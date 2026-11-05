@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report v2-oneoff v2-original v2-drift v2-analyse
 
 test:
 	$(PY) -m pytest -q
@@ -130,3 +130,20 @@ views-judge:
 
 views-report:
 	$(PY) -m referee.views report
+
+# study v2 (docs/prereg-v1.md, amendment 5): Sonnet, the same 60 oneoff and 30 original tasks, three one-sentence
+# wordings; each command stops at the approved boundary and resumes when run again
+V2_CONDITIONS ?= human-review recorded norm
+
+v2-oneoff:
+	for c in $(V2_CONDITIONS); do $(MAKE) v1-cell CONDITION=$$c MODEL=claude-sonnet-5-5 VARIANTS=oneoff V1_N=60 || exit 1; done
+
+v2-original:
+	for c in $(V2_CONDITIONS); do $(MAKE) v1-cell CONDITION=$$c MODEL=claude-sonnet-5-5 VARIANTS=original V1_N=30 || exit 1; done
+
+v2-drift:
+	$(PY) -m referee.run --backend anthropic --rules rules-v1.yaml --condition baseline --models claude-sonnet-5-5 \
+		--variants oneoff --n 20 --seed $(SEED) --max-usd-to-boundary --workers $(V1_WORKERS) --out runs/v1/baseline-drift
+
+v2-analyse:
+	$(PY) -m referee.study v2
