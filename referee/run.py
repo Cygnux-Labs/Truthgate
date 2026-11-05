@@ -47,9 +47,10 @@ def write_json(path, obj):
 PREREGS = {"rules.yaml": "docs/prereg.md", "rules-v1.yaml": "docs/prereg-v1.md"}
 
 
-def prereg(rules_name="rules.yaml", condition=None):
+def prereg(rules_name="rules.yaml", condition=None, tool=None):
     """(the sha256 the pre-registration of `rules_name` fixes for it, the commit that last changed that file), or
-    Nones. With `condition`, the sha256 it fixes for that condition's prompt file instead."""
+    Nones. With `condition`, the sha256 it fixes for that condition's prompt file instead; with `tool`, for that tool's
+    description."""
     doc = PREREGS.get(rules_name)
     if not doc:
         return None, None
@@ -60,7 +61,7 @@ def prereg(rules_name="rules.yaml", condition=None):
                                 capture_output=True, text=True).stdout.strip()
     except OSError:
         return None, None
-    what = f"condition `{condition}`" if condition else re.escape(rules_name)
+    what = f"condition `{condition}`" if condition else f"tool `{tool}`" if tool else re.escape(rules_name)
     m = re.search(what + r" sha256: `([0-9a-f]{64})`", text)
     return (m.group(1) if m else None), (commit or None)
 
@@ -178,6 +179,20 @@ def hidden_checks(task, after_files, rule_set, confirm_runs, links=None):
     return checks
 
 
+def deltas(history):
+    """The workspace hashes after each call as changes from the state before it ({path: hash, or None when deleted}),
+    the first entry whole: what the signed record keeps (small, however many files the workspace holds)."""
+    out, prev = [], {}
+    for h in history:
+        now = h["files"]
+        if now is None:   # the container was gone: no hashes, not a deletion
+            out.append(h)
+            continue
+        out.append({**h, "files": {p: now.get(p) for p in sorted(set(prev) | set(now)) if prev.get(p) != now.get(p)}})
+        prev = now
+    return out
+
+
 def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, out, opts, rep=1):
     rid = f"{model.split('/')[-1]}__{variant}__{task['task_id']}" + (f"__rep{rep}" if rep > 1 else "")
     outdir = os.path.join(out, rid)
@@ -190,27 +205,36 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     else:   # the pilot's prompts, which conditions/baseline.txt reproduces byte for byte
         system = agent.SYSTEM.format(instruction=tasks.INSTRUCTION, max_attempts=opts.max_attempts)
         task_text = tasks.INSTRUCTION
+    private = opts.condition in conditions.PRIVATE
     before_tar = sandbox.make_tar(files)
-    box = sandbox.Sandbox(re.sub(r"[^a-z0-9]+", "-", rid.lower())[:40], opts.time_limit + 300)
+    box = sandbox.Sandbox(re.sub(r"[^a-z0-9]+", "-", rid.lower())[:40], opts.time_limit + 300, private=private)
     backend = backend_factory(model)
     result = {"status": "error"}
-    run = None
+    run, history, private_tar = None, [], None
     try:
         box.start(files)
         net = {"before": box.net_counters()}
         run = recorder.start(rid, task_text)
         try:
             result = agent.rollout(backend, box, run, task_text, system, max_steps=opts.max_steps,
-                                   max_attempts=opts.max_attempts, time_limit_s=opts.time_limit)
+                                   max_attempts=opts.max_attempts, time_limit_s=opts.time_limit, private=private,
+                                   history=history)
         except SignerMissing:
             raise
         except Exception as e:   # the model API or the sandbox failed: the evidence so far is still judged
             result = {"status": "error", "error": f"{type(e).__name__}: {e}"[:2000]}
         net["after"] = box.net_counters()
+        if private:
+            private_tar = box.private_snapshot()
         after_tar = box.stop_and_snapshot()
     finally:
         box.remove()
     evidence = recorder.finish(run, outdir, rid)
+    history = {"rollout_id": rid, "rollout_run_id": evidence["run_id"],
+               "rollout_bundle_sha256": evidence["bundle_sha256"], "calls": deltas(history)}
+    history_sha = write_json(os.path.join(outdir, "workspace_history.json"), history)
+    history_record = recorder.record_event(rid, "referee.workspace_history", history, {"calls": len(history["calls"])},
+                                           outdir, "workspace_history")
     transcript_sha = write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
     if getattr(opts, "final_report", False) and hasattr(backend, "final_report") and result["status"] != "budget":
         from referee import report_turn   # after the episode: the agent's report to its user, a signed event
@@ -225,6 +249,9 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
         f.write(before_tar)
     with open(os.path.join(outdir, "after.tar"), "wb") as f:
         f.write(after_tar)
+    if private_tar is not None:
+        with open(os.path.join(outdir, "private.tar"), "wb") as f:
+            f.write(private_tar)
     before, after = sandbox.read_tar(before_tar, root=""), sandbox.read_tar(after_tar)
     checks = hidden_checks(task, sandbox.files_of(after), rule_set, rule_set["rules"]["R3"]["confirm_runs"],
                            sandbox.links_of(after))
@@ -237,7 +264,11 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
             sha(open(os.path.join(outdir, evidence["opening"]), "rb").read()),
             "before_sha256": sha(before_tar), "after_sha256": sha(after_tar),
             "checks_sha256": write_json(os.path.join(outdir, "checks.json"), checks),
-            "net_sha256": write_json(os.path.join(outdir, "net.json"), net)}
+            "net_sha256": write_json(os.path.join(outdir, "net.json"), net),
+            "workspace_history_sha256": history_sha,
+            "workspace_history_bundle_sha256": history_record.get("bundle_sha256")}
+    if private:
+        pins["private_sha256"] = private_tar and sha(private_tar)
     v = rules.verdict(rule_set, rules_sha, rid, evidence["trace"], before, after, checks, net, pins)
     v["signed"] = evidence["signed"]
     record = recorder.record_verdict(v, outdir)
@@ -312,6 +343,10 @@ def main(argv=None):
         if opts.condition and prereg(opts.rules, opts.condition)[0] != conditions.load(opts.condition)[2]:
             sys.exit(f"prompts/conditions/{opts.condition}.txt is not the one {PREREGS.get(opts.rules)} fixes: a "
                      "signed run uses the pre-registered prompts only")
+        if opts.condition in conditions.PRIVATE and \
+                prereg(opts.rules, tool="private_shell")[0] != sha(agent.PRIVATE_SHELL_DESCRIPTION.encode()):
+            sys.exit(f"the private_shell description is not the one {PREREGS.get(opts.rules)} fixes: a signed run "
+                     "uses the pre-registered tool only")
         try:
             recorder = TracekitRecorder(ROOT)
         except SignerMissing as e:
@@ -322,8 +357,11 @@ def main(argv=None):
         except agent.KeyMissing as e:
             sys.exit(str(e))
         budget = agent.Budget(opts.max_usd)
-        factory = lambda m: agent.AnthropicBackend(m, budget)   # noqa: E731
+        offered = agent.tools(opts.condition in conditions.PRIVATE)
+        factory = lambda m: agent.AnthropicBackend(m, budget, tools=offered)   # noqa: E731
     else:
+        if opts.condition in conditions.PRIVATE:
+            sys.exit("the private_shell conditions run on the anthropic backend only")
         loaded = {}   # one model in memory, one rollout at a time
 
         def factory(m):

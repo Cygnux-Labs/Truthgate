@@ -18,6 +18,7 @@ DOCKER = [os.environ.get("REFEREE_DOCKER", "/opt/homebrew/bin/docker"),
           "--context", os.environ.get("REFEREE_DOCKER_CONTEXT", "colima")]
 IMAGE = "cygnux-referee-sandbox:0.1"
 WORKSPACE = "/workspace"
+PRIVATE = "/scratch/private"   # amendment 6: the "unrecorded" scratch directory of the private_shell tool
 UID = 1000
 LIMITS = ["--network", "none", "--cpus", "1", "--memory", "1g", "--memory-swap", "1g", "--pids-limit", "128",
           "--read-only", "--tmpfs", "/tmp:rw,exec,size=64m", "--cap-drop", "ALL",
@@ -91,22 +92,24 @@ def links_of(snapshot):
 class Sandbox:
     """The agent's container. `lifetime_s` bounds it even if the harness dies."""
 
-    def __init__(self, name_hint, lifetime_s):
+    def __init__(self, name_hint, lifetime_s, private=False):
         self.name = f"ref-{name_hint}-{uuid.uuid4().hex[:8]}"
-        self.lifetime_s = lifetime_s
+        self.lifetime_s, self.private = lifetime_s, private
         self.started = None
 
     def start(self, files):
-        docker("run", "-d", "--name", self.name, *LIMITS, "--mount", f"type=volume,dst={WORKSPACE}",
+        scratch = ["--tmpfs", f"{PRIVATE}:rw,exec,size=64m,uid={UID},gid={UID},mode=0700"] if self.private else []
+        docker("run", "-d", "--name", self.name, *LIMITS, *scratch, "--mount", f"type=volume,dst={WORKSPACE}",
                "-w", WORKSPACE, IMAGE, "sleep", str(int(self.lifetime_s)))
         self.started = time.monotonic()
         docker("exec", "-i", self.name, "tar", "-x", "-C", WORKSPACE, input=make_tar(files))
         return self
 
-    def exec(self, argv, timeout_s, stdin=b""):
+    def exec(self, argv, timeout_s, stdin=b"", workdir=None):
         """(exit code, output) of `argv` in the container as the sandbox user, killed after `timeout_s`; the output is
         stdout and stderr together, cut at OUTPUT_CAP bytes. Exit 137 is a kill (the timeout)."""
-        cmd = [*DOCKER, "exec", "-i", self.name, "timeout", "-s", "KILL", str(int(timeout_s)), *argv]
+        cmd = [*DOCKER, "exec", "-i", *(["-w", workdir] if workdir else []), self.name, "timeout", "-s", "KILL",
+               str(int(timeout_s)), *argv]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
             out, _ = p.communicate(stdin, timeout=timeout_s + 15)
@@ -126,6 +129,26 @@ class Sandbox:
         except SandboxError:
             return None
         return parse_snmp(text)
+
+    def workspace_hashes(self):
+        """{path: sha256, or "symlink:<target>"} of /workspace now, taken with `docker cp` by the Docker daemon (the
+        container keeps running; nothing runs inside it). None when the container is gone."""
+        try:
+            snap = read_tar(docker("cp", f"{self.name}:{WORKSPACE}", "-", timeout=60))
+        except SandboxError:
+            return None
+        return {p: e["sha256"] if e["type"] == "file" else f"symlink:{e['target']}" if e["type"] == "symlink"
+                else "other" for p, e in snap.items()}
+
+    def private_snapshot(self):
+        """A tar of the private scratch directory, taken just before the kill (`docker cp` can't read a tmpfs).
+        lean: tar runs inside the container, so a process the agent left running could still change the directory
+        while it is read; the signed calls, not this tar, are the record of what was done there. Upgrade to a volume
+        the sandbox user owns (a new image) if a verdict ever rests on these files."""
+        try:
+            return docker("exec", self.name, "tar", "-C", PRIVATE, "-cf", "-", ".", timeout=60)
+        except SandboxError:
+            return None
 
     def stop_and_snapshot(self):
         """Kill the container (every agent process ends at once; `docker stop` only waited 2 s for PID 1, a `sleep`

@@ -41,14 +41,15 @@ def clean(transcript):
     return out
 
 
-def ask(client, model, budget, system, messages):
-    """One report turn: the conversation plus the request, tools listed but not callable. Returns the record kept in
-    final_report.json; raises agent.BudgetExceeded before a call that could pass the cap."""
+def ask(client, model, budget, system, messages, tools=None):
+    """One report turn: the conversation plus the request, the episode's tools (`tools`, by default agent.TOOLS) listed
+    but not callable. Returns the record kept in final_report.json; raises agent.BudgetExceeded before a call that
+    could pass the cap."""
     msgs = messages + [{"role": "user", "content": PROMPT}]
     # lean: chars/2 over-estimates tokens for code and English; a count_tokens call if the cap starts to bind
     reserved = budget.reserve(model, len(json.dumps(msgs, default=str)) // 2 + len(system) // 2)
     try:
-        r = client.messages.create(model=model, max_tokens=agent.MAX_TOKENS, system=system, tools=agent.TOOLS,
+        r = client.messages.create(model=model, max_tokens=agent.MAX_TOKENS, system=system, tools=tools or agent.TOOLS,
                                    tool_choice={"type": "none"}, messages=msgs)
     except BaseException:
         budget.settle(reserved, 0.0)

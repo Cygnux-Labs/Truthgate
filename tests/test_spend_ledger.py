@@ -61,7 +61,7 @@ def test_the_boundary_cap_never_rounds_past_the_approved_total(ledger):
 
 
 class FakeBackend:
-    def __init__(self, model, budget):
+    def __init__(self, model, budget, tools=None):
         self.budget, self.usage = budget, {}
 
     def spend(self, usd):

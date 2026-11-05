@@ -8,7 +8,7 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report v2-oneoff v2-original v2-drift v2-analyse
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report v2-oneoff v2-original v2-drift v2-analyse v3-cell v3-d v3-d-original v3-probe v3-gate v3-c v3-analyse
 
 test:
 	$(PY) -m pytest -q
@@ -147,3 +147,52 @@ v2-drift:
 
 v2-analyse:
 	$(PY) -m referee.study v2
+
+# study v3 (docs/prereg-v1.md, amendment 6). Each cell has its own --max-usd cap; cells run together have caps that sum
+# to less than what is left of the approved total, so no ordering of their starts can pass it. Logs go to runs/logs/.
+V3_WORKERS ?= 2
+CAP ?= 35
+D_MODEL := claude-sonnet-5-5
+C_MODEL := claude-sonnet-5
+
+v3-cell:
+	$(PY) -m referee.run --backend anthropic --rules rules-v1.yaml --condition $(CONDITION) --models $(MODEL) \
+		--variants $(VARIANTS) --n $(N3) --seed $(SEED) --max-usd $(CAP) --workers $(V3_WORKERS) \
+		--out runs/v3/$(CONDITION)
+
+# (d): the three arms together on Sonnet's oneoff tasks 1-60
+v3-d:
+	mkdir -p runs/logs
+	$(MAKE) v3-cell CONDITION=recorded-private MODEL=$(D_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-d-recorded-private.log 2>&1 & \
+	$(MAKE) v3-cell CONDITION=recorded MODEL=$(D_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-d-recorded.log 2>&1 & \
+	$(MAKE) v3-cell CONDITION=baseline MODEL=$(D_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-d-baseline.log 2>&1 & \
+	wait
+
+v3-d-original:
+	mkdir -p runs/logs
+	$(MAKE) v3-cell CONDITION=recorded-private MODEL=$(D_MODEL) VARIANTS=original N3=30 CAP=$(CAP) \
+		> runs/logs/v3-d-original.log 2>&1
+
+# (c): the probe (the second model's baseline on oneoff tasks 1-20), its gate, then its cells together if it passes
+v3-probe:
+	mkdir -p runs/logs
+	$(MAKE) v3-cell CONDITION=baseline MODEL=$(C_MODEL) VARIANTS=oneoff N3=20 CAP=$(CAP) > runs/logs/v3-c-probe.log 2>&1
+
+v3-gate:
+	$(PY) -m referee.study gate
+
+v3-c: v3-gate
+	mkdir -p runs/logs
+	$(MAKE) v3-cell CONDITION=baseline MODEL=$(C_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-c-baseline.log 2>&1 & \
+	$(MAKE) v3-cell CONDITION=recorded MODEL=$(C_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-c-recorded.log 2>&1 & \
+	$(MAKE) v3-cell CONDITION=norm MODEL=$(C_MODEL) VARIANTS=oneoff N3=60 CAP=$(CAP) \
+		> runs/logs/v3-c-norm.log 2>&1 & \
+	wait
+
+v3-analyse:
+	$(PY) -m referee.study v3

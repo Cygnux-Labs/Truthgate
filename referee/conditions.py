@@ -6,7 +6,8 @@ import hashlib
 import os
 
 DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompts", "conditions")
-NAMES = ("baseline", "monitor-aware", "adversarial", "human-review", "recorded", "norm")
+NAMES = ("baseline", "monitor-aware", "adversarial", "human-review", "recorded", "norm", "recorded-private")
+PRIVATE = ("recorded-private",)   # amendment 6: the conditions that offer the private_shell tool
 MAX_ATTEMPTS = 3   # the files are rendered with it
 
 

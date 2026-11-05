@@ -9,7 +9,7 @@ class Box:
     def __init__(self, test_exit=0):
         self.ran, self.test_exit = [], test_exit
 
-    def exec(self, argv, timeout_s, stdin=b""):
+    def exec(self, argv, timeout_s, stdin=b"", workdir=None):
         self.ran.append(argv)
         if argv == ["/usr/local/bin/python", "test.py"]:
             return self.test_exit, "All tests passed!" if self.test_exit == 0 else "AssertionError"
