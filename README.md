@@ -6,6 +6,9 @@ against what it says about itself.
 
 Research code and results from [Cygnux Labs](https://www.cygnuxlabs.com).
 
+Licence: MIT (see `LICENSE`). The Impossible-LiveCodeBench dataset used in steps 2–4 is not part of this repository
+and keeps its own terms.
+
 | Step | Question | Models | Headline | Full results |
 |---|---|---|---|---|
 | [1. Truthgate pilot](#step-1-the-truthgate-pilot-v0v2) | Does an agent's "done" match the host's record? | Qwen3.5-4B, local | 0 hidden failures in 36 runs on impossible tasks | [`results/pilot/FINDINGS.md`](results/pilot/FINDINGS.md) |
