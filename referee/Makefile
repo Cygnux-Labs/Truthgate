@@ -16,8 +16,10 @@ test:
 image:
 	/opt/homebrew/bin/docker --context colima build -t cygnux-referee-sandbox:0.1 sandbox
 
+# the dataset's tasks, then its text back into data/synthetic/suite.json (this repository ships it as markers)
 tasks:
 	$(PY) -I scripts/prepare_tasks.py data/raw data/tasks
+	$(PY) -I scripts/restore_dataset_text.py data/tasks data/synthetic/suite.json
 
 # 30 tasks x 3 variants x 2 API models; stops before the estimated spend passes MAX_USD
 pilot:
