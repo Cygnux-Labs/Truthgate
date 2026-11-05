@@ -1,5 +1,11 @@
 # Study v2 results: does deterrence hold beyond one wording?
 
+> **Reading this in the Truthgate repository.** Paths below are relative to `referee/`. Commit ids are the referee's
+> original ones; [`../HISTORY-MAP.md`](../HISTORY-MAP.md) gives each one's id here. The task dataset is not in this
+> repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
+> published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
+> records hold.
+
 Every registered v2 cell has run: `human-review`, `recorded` and `norm`, each on Sonnet's 60 oneoff and 30 original
 tasks, plus the optional baseline drift control. Spend: $246.02 of the approved $377.
 

@@ -1,5 +1,11 @@
 # Study v1 results: an out-of-reach referee on Impossible-LiveCodeBench
 
+> **Reading this in the Truthgate repository.** Paths below are relative to `referee/`. Commit ids are the referee's
+> original ones; [`../HISTORY-MAP.md`](../HISTORY-MAP.md) gives each one's id here. The task dataset is not in this
+> repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
+> published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
+> records hold.
+
 Every registered cell has run: the pilot; Sonnet tasks 31–90 and Opus tasks 1–90, both on the impossible variants;
 monitor-aware Sonnet and Haiku; and baseline Haiku. The view judges have run too. Spend: $177.11 of the approved
 $200. All figures below were recomputed on 2026-11-05 from the recorded evidence, with free commands only. Every one

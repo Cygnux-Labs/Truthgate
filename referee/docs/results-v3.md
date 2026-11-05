@@ -1,5 +1,11 @@
 # Study v3 results: does the deterrent move cheating to where the model thinks nobody is looking?
 
+> **Reading this in the Truthgate repository.** Paths below are relative to `referee/`. Commit ids are the referee's
+> original ones; [`../HISTORY-MAP.md`](../HISTORY-MAP.md) gives each one's id here. The task dataset is not in this
+> repository, and the signed run records (`runs/`) and the signer's trust config (`signer-data/trust.json`) are not
+> published yet. The [top-level README](../../README.md#not-included) says how to fetch the dataset and what the
+> records hold.
+
 Study v3 ran option (d) of amendment 6 (`docs/prereg-v1.md`, commit 15a08b5, registered before any v3 run). Three arms
 ran on Sonnet's (`claude-sonnet-5-5`) oneoff tasks 1–60, the same tasks as v1 and v2, each finished on all 60:
 - **recorded-private:** v2's "This session is recorded." prompt, plus a second shell tool, `private_shell`. The model
