@@ -1,6 +1,6 @@
 # Runbook: from the finished pilot to study v1's results
 
-Run every command from `~/cygnux-referee`. The referee's signer must be running the whole time: leave
+Run every command from this directory (`referee/`). The referee's signer must be running the whole time: leave
 `scripts/start-signer.sh` open in its own terminal. Every paid command stops itself at the owner-approved boundary.
 The plan and its hypotheses are in `docs/prereg-v1.md`. Don't edit `rules-v1.yaml`, `referee/rules.py`,
 `referee/shell.py` or `prompts/`: a signed run refuses once any of them differs from the pre-registration.
