@@ -1,11 +1,15 @@
 """Study v2 (amendment 5): each wording against the same tasks' baseline, paired; Holm across the three; H7 also
 against monitor-aware; original passes and disclosure reported."""
 import json
+import os
 
 import pytest
 
 from conftest import ROOT
 from referee import conditions, study, tasks
+
+if not os.path.exists(f"{ROOT}/data/tasks/oneoff.jsonl"):
+    pytest.skip("the task data isn't here: run `make tasks` first", allow_module_level=True)
 
 ONEOFF = [t["task_id"] for t in tasks.load(f"{ROOT}/data/tasks", "oneoff", 60, 20261104)]
 ORIG = [t["task_id"] for t in tasks.load(f"{ROOT}/data/tasks", "original", 30, 20261104)]

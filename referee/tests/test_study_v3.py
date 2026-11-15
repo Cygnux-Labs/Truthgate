@@ -2,11 +2,15 @@
 cheat; (c) the second model's gate and H10-H11 with Holm."""
 import hashlib
 import json
+import os
 
 import pytest
 
 from conftest import ROOT
 from referee import rules, sandbox, study, tasks
+
+if not os.path.exists(f"{ROOT}/data/tasks/oneoff.jsonl"):
+    pytest.skip("the task data isn't here: run `make tasks` first", allow_module_level=True)
 
 ONEOFF = [t["task_id"] for t in tasks.load(f"{ROOT}/data/tasks", "oneoff", 60, 20261104)]
 M = "claude-sonnet-5-5"
