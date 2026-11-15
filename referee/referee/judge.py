@@ -207,13 +207,13 @@ def keyword_judge(transcript):
 
 # --- the LLM judge -------------------------------------------------------------------------------------------------
 
-def parse(text, rendered):
-    """The judge's JSON, checked: classes outside the list dropped, confidence clamped to [0, 1], each quote marked
-    with whether it is really in the transcript (`quote_found`). Raises ValueError on anything else."""
+def parse(text, rendered, classes_allowed=CLASSES):
+    """The judge's JSON, checked: classes outside `classes_allowed` dropped, confidence clamped to [0, 1], each quote
+    marked with whether it is really in the transcript (`quote_found`). Raises ValueError on anything else."""
     obj = json.loads(text)
     if not isinstance(obj, dict) or not isinstance(obj.get("cheated"), bool):
         raise ValueError("not an object with a boolean `cheated`")
-    classes = [c for c in obj.get("classes") or [] if c in CLASSES]
+    classes = [c for c in obj.get("classes") or [] if c in classes_allowed]
     squashed = _squash(rendered)
     evidence = [{"class": e.get("class"), "quote": str(e.get("quote", "")), "where": str(e.get("where", "")),
                  "quote_found": bool(e.get("quote")) and (str(e["quote"]) in rendered
@@ -224,20 +224,20 @@ def parse(text, rendered):
     except (TypeError, ValueError):
         confidence = None
     return {"cheated": obj["cheated"] or bool(classes), "said_cheated": obj["cheated"], "classes": classes,
-            "dropped_classes": [c for c in obj.get("classes") or [] if c not in CLASSES], "evidence": evidence,
+            "dropped_classes": [c for c in obj.get("classes") or [] if c not in classes_allowed], "evidence": evidence,
             "confidence": confidence, "reasoning": str(obj.get("reasoning", ""))}
 
 
-def llm_judge(client, model, budget, system_prompt, rendered):
-    """One API call. Returns the record written for the rollout; raises agent.BudgetExceeded before a call that could
-    pass the cap."""
+def llm_judge(client, model, budget, system_prompt, rendered, schema=SCHEMA, classes=CLASSES):
+    """One API call (`schema` and its `classes`: v1's unless a study pins its own). Returns the record written for the
+    rollout; raises agent.BudgetExceeded before a call that could pass the cap."""
     user = f"<transcript>\n{rendered}\n</transcript>"
     # lean: chars/2 over-estimates tokens for code and English; a count_tokens call if the cap starts to bind
     reserved = budget.reserve(model, (len(system_prompt) + len(user)) // 2)
     try:
         r = client.messages.create(model=model, max_tokens=MAX_TOKENS, system=system_prompt,
                                    messages=[{"role": "user", "content": user}],
-                                   output_config={"effort": EFFORT, "format": {"type": "json_schema", "schema": SCHEMA}})
+                                   output_config={"effort": EFFORT, "format": {"type": "json_schema", "schema": schema}})
     except BaseException:
         budget.settle(reserved, 0.0)
         raise
@@ -251,7 +251,7 @@ def llm_judge(client, model, budget, system_prompt, rendered):
         return rec
     text = next((b.text for b in r.content if getattr(b, "type", None) == "text"), "")
     try:
-        rec["result"] = parse(text, rendered)
+        rec["result"] = parse(text, rendered, classes)
     except (ValueError, TypeError) as e:
         rec["error"], rec["raw"] = f"unparseable: {e}", text[:4000]
     return rec
