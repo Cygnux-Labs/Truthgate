@@ -81,3 +81,38 @@ To see the referee's history here, run from the repository's top level: `git log
 | `e7724a6caa9ab6d0cb8b566dd8fc70c1e072c47f` | `480c6ca6a9633aaa6b5b0e86d748a90dc6b6c7ad` |
 | `776426ccc2d278edbfa995946649d1517593a663` | `693af084b57bef520e47a1ffe799dd1a1796a8ed` |
 | `498f50162cd072821d5a3d7f255c8685970bd7ac` | `2aed64fabb957004e71f2b95467cb09f4caa1a4f` |
+
+## After the merge: step 5 and D1
+
+Six more commits followed in the referee's repository: the tamper demo and pilot (step 5), and the check of study 1's
+disclosure labels by a person (D1). They came here as one forward import of the referee at `37849f5`, not commit by
+commit, so they have no ids here. The documents cite them by their original ids; this table says what each changed
+(paths relative to `referee/`).
+
+| # | Original | Date (UTC) | Cited in `docs/` | Changed | Commit |
+|---|---|---|---|---|---|
+| 30 | `a11901d` | 2026-11-14 16:14 | STUDIES | `referee/tamper.py`, `scripts/tamper_demo.sh`, `tests/test_tamper.py`, `docs/results-v2-tamper-demo.md`, `Makefile` | Tamper demo: eight scripted agents, some changing what judges read, scored by naive rewar… |
+| 31 | `ef662ab` | 2026-11-14 19:46 | results-tamper-pilot, STUDIES | `docs/prereg-tamper-pilot.md`, `prompts/tamper-judge-v1.txt`, `referee/tamper_pilot.py`, `referee/tamper.py`, `referee/judge.py`, `scripts/tamper_pilot.sh`, `tests/test_tamper_pilot.py`, `tests/test_tamper.py`, `docs/results-v2-tamper-demo.md`, `Makefile` | Pre-registration, before any paid call: the tamper pilot (Sonnet 5.5, v1's oneoff tasks 1… |
+| 32 | `67eae93` | 2026-11-14 19:49 |  | `docs/results-tamper-pilot.md` | Tamper pilot: status (the paid run refused by the session's permission guard, nothing spe… |
+| 33 | `d78e9ea` | 2026-11-14 19:55 | results-tamper-pilot, STUDIES | `docs/prereg-tamper-pilot.md` (amendment 1), `referee/tamper.py`, `referee/tamper_pilot.py`, `tests/test_tamper.py`, `tests/test_tamper_pilot.py`, `docs/results-tamper-pilot.md`, `docs/results-v2-tamper-demo.md` | Amendment 1 to the tamper pilot, before any paid call: T1 is a false claim (the next run… |
+| 34 | `c02b366` | 2026-11-15 01:03 | STUDIES | `docs/results-tamper-pilot.md`, `docs/STUDIES.md` | Study 4 results: the tamper pilot ($13.4893; gate STOP as computed; tampering 0/40, one c… |
+| 35 | `37849f5` | 2026-11-15 01:08 |  | `docs/results-v1.md`, `docs/results-tamper-pilot.md`, `docs/STUDIES.md` | D1 human-verified: all 55 draft disclosure labels confirmed by a person (2026-11-15); vie… |
+
+Every file a pre-registration pins by sha256 is byte-identical to the referee's at `37849f5`: `make tasks` brings
+`data/synthetic/suite.json` back to its pin, and `.venv/bin/python -m referee.tamper_pilot pins` checks the tamper
+pilot's. The other files from these commits are the referee's too, except:
+
+- **Reading notes** atop `docs/results-v2-tamper-demo.md`, `docs/results-tamper-pilot.md` and `docs/STUDIES.md`, as on
+  the other results documents. `docs/results-v1.md` no longer has its note that D1 was not checked.
+- **Privacy:** the name of the person who checked D1 is left out of `docs/results-v1.md`, and home-directory paths in
+  `docs/results-v2-tamper-demo.md` read `/path/to/...`.
+- **Dataset text:** `docs/results-v2-tamper-demo.md` describes `lcbhard_66`'s changed assertion instead of quoting
+  it, and `tests/test_tamper.py` uses a made-up input, `(5, [3, 3, 4, 4])`, in place of that assertion's.
+- **`docs/STUDIES.md`:** step 1 points to this repository's pilot, and step 5's results commit is named.
+- **Docker:** the Makefile's `image` target and `scripts/tamper_demo.sh` read `REFEREE_DOCKER` and
+  `REFEREE_DOCKER_CONTEXT`, as `referee/sandbox.py` does. The defaults are unchanged. `scripts/tamper_pilot.sh` is
+  pinned, so it is unchanged.
+
+Two changes to files from before the merge came with them: `tests/test_study_v2.py` and `tests/test_study_v3.py` skip
+when `data/tasks/` is missing, and `RUNBOOK.md` and `docs/results-v3.md` lose a home-directory path and a regional
+idiom.

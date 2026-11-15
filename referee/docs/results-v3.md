@@ -114,7 +114,7 @@ discordant pairs of 18:0 (human-review), 18:0 (recorded) and 23:0 (norm).
    the registered measure.
 4. **The arms ran in five batches, not one.** Batch 1 started at 03:04 UTC on 11-05 and the last rollout finished at
    08:01. The interruptions:
-   - two stops by the coordinator, one of them ahead of a power cut;
+   - two stops by the coordinator, one of them ahead of a power outage;
    - a network outage at about 03:54–04:03 UTC, followed by a third stop;
    - my own restart of the baseline arm with more workers once the other two had finished.
 

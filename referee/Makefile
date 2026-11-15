@@ -8,13 +8,17 @@ MAX_USD ?= 40
 WORKERS ?= 3
 MLX_MODEL ?= mlx-community/Qwen3.5-4B-MLX-4bit
 
-.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report v2-oneoff v2-original v2-drift v2-analyse v3-cell v3-d v3-d-original v3-probe v3-gate v3-c v3-analyse
+.PHONY: test image tasks pilot metrics recheck smoke-api smoke-mlx smoke-mlx-unsigned judge-dry judge-keyword judge-llm headtohead v1-cell v1-rescore v1-budget v1-calibrate v1-replay v1-judge v1-analyse timing spend approve-next synthetic-run synthetic-judge synthetic-report report-turns views-judge views-report v2-oneoff v2-original v2-drift v2-analyse v3-cell v3-d v3-d-original v3-probe v3-gate v3-c v3-analyse tamper-demo tamper-pilot tamper-v1
 
 test:
 	$(PY) -m pytest -q
 
+# the docker CLI and context the sandbox uses (referee/sandbox.py reads the same two variables)
+REFEREE_DOCKER ?= /opt/homebrew/bin/docker
+REFEREE_DOCKER_CONTEXT ?= colima
+
 image:
-	/opt/homebrew/bin/docker --context colima build -t cygnux-referee-sandbox:0.1 sandbox
+	$(REFEREE_DOCKER) --context $(REFEREE_DOCKER_CONTEXT) build -t cygnux-referee-sandbox:0.1 sandbox
 
 # the dataset's tasks, then its text back into data/synthetic/suite.json (this repository ships it as markers)
 tasks:
@@ -198,3 +202,16 @@ v3-c: v3-gate
 
 v3-analyse:
 	$(PY) -m referee.study v3
+
+# the tamper demo (docs/results-v2-tamper-demo.md): a fresh signer, eight scripted rollouts, every judge; no API spend
+tamper-demo:
+	sh scripts/tamper_demo.sh
+
+# the tamper pilot (docs/prereg-tamper-pilot.md): paid, stops at the stage's $50; CMDS from run, judge, score
+CMDS ?= score
+tamper-pilot:
+	sh scripts/tamper_pilot.sh $(CMDS)
+
+# stage 2 of the pilot: v1's natural cheats and honest passes re-scored, no spend
+tamper-v1:
+	$(PY) -m referee.tamper_pilot v1
