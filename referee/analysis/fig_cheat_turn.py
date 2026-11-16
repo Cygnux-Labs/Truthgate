@@ -65,4 +65,4 @@ for s in ("top", "right"):
     ax.spines[s].set_visible(False)
 ax.legend(frameon=False, fontsize=8, loc="upper right")
 fig.tight_layout(pad=0.3)
-fig.savefig(os.path.join(HERE, "cheat_turn.pdf"))
+fig.savefig(os.path.join(HERE, "cheat_turn.pdf"), metadata={"CreationDate": None, "ModDate": None})

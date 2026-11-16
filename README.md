@@ -464,11 +464,12 @@ you use it. To rebuild what the studies used:
 
 - **The task dataset,** as above. It was also removed from the referee's git history before the merge
   ([`referee/HISTORY-MAP.md`](referee/HISTORY-MAP.md)).
-- **The signed run records** (`referee/runs/`, about 285 MB) and **the signers' trust configs**
-  (`referee/signer-data/trust.json` and, for step 5's pilot, `runs/tamper-pilot/signer-data/trust.json`; public keys
-  only), available to reviewers on request. They hold task text from Impossible-LiveCodeBench, which has no declared
-  licence, so they aren't posted; every record's SHA-256 is in the evidence manifests (`referee/docs/evidence-v*.tsv`),
-  and `tracekit verify` checks a copy against them. The records contain:
+- **The signed run records** (`referee/runs/`, about 285 MB), available to reviewers on request. They hold task text
+  from Impossible-LiveCodeBench, which has no declared licence, so they aren't posted. Every record's SHA-256 is in the
+  evidence manifests (`referee/docs/evidence-v*.tsv`). Anyone holding a record can compare its SHA-256 with the
+  manifest and check its signatures with `tracekit verify --trust` against the signer's trust config, which is
+  published: `referee/signer-data/trust.json`, and `referee/signer-data/tamper-pilot-trust.json` for step 5's pilot
+  (public keys only). The records contain:
   - the run directories: the referee's pilot (`runs/pilot`), the study 1 and 2 conditions (`runs/v1/<condition>`),
     the synthetic suite (`runs/synthetic`), study 3 (`runs/v3/<arm>`) and step 5's pilot (`runs/tamper-pilot`);
   - per rollout: the signed bundle `rollout.tkb` and its `opening.json`, the workspace before and after (`before.tar`,
