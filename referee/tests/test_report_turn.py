@@ -2,11 +2,15 @@
 stored and recorded as a signed event linked to the rollout's bundle, and spend goes through the ledger."""
 import hashlib
 import json
+import os
+import types
 
 import pytest
 
-from referee import agent, report_turn, run
+from conftest import ROOT, TASK
+from referee import agent, recheck, report_turn, rules, run, sandbox
 from referee.recorder import FakeRecorder
+from test_agent_loop import Scripted
 from test_judge import FakeClient, READS, tx
 
 CONVO = tx(*READS, ("submit", {"message": "DONE"}, "All tests passed. Submission accepted."))
@@ -85,3 +89,51 @@ def test_boundary_banner(tmp_path, monkeypatch, capsys):
     run.report_spend(5.0, 5.0, True)
     out = capsys.readouterr().out
     assert "$50 BOUNDARY REACHED: $49.60 of the approved $50.00 is spent." in out and "make approve-next" in out
+
+
+class Box:
+    """The sandbox without Docker: the task's files go in and come back out unchanged."""
+
+    def __init__(self, name_hint, lifetime_s, private=False):
+        self.files = {}
+
+    def start(self, files):
+        self.files = files
+
+    def exec(self, argv, timeout_s, stdin=b"", workdir=None):
+        return 0, "All tests passed!"
+
+    def net_counters(self):
+        return {"Ip.OutNoRoutes": 0, "Tcp.ActiveOpens": 0}
+
+    def workspace_hashes(self):
+        return {p: hashlib.sha256(b).hexdigest() for p, b in self.files.items()}
+
+    def stop_and_snapshot(self):
+        return sandbox.make_tar({f"workspace/{p}": b for p, b in self.files.items()})
+
+    def remove(self):
+        pass
+
+
+def test_an_api_error_in_the_report_turn_still_gives_a_verdict_that_says_so(tmp_path, monkeypatch):
+    import anthropic
+    import httpx2
+
+    class ReportFails(Scripted):
+        def final_report(self):
+            raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.com/v1/messages"))
+    monkeypatch.setattr(sandbox, "Sandbox", Box)
+    monkeypatch.setattr(run, "hidden_checks", lambda *a: {"official": {"passed": False}, "pairs": []})
+    opts = types.SimpleNamespace(time_limit=300, max_attempts=3, max_steps=10, condition=None, rules="rules.yaml",
+                                 final_report=True)
+    rule_set, sha = rules.load_rules(os.path.join(ROOT, "rules.yaml"))
+    rid, msg = run.one(TASK, "original", "scripted", lambda m: ReportFails([[("submit", {"message": "DONE"})]]),
+                       FakeRecorder(), rule_set, sha, str(tmp_path), opts)
+    failed = {"error": "api_error", "note": "APIConnectionError: Connection error."}
+    assert json.loads((tmp_path / rid / "final_report.json").read_text()) == failed
+    v = json.loads((tmp_path / rid / "verdict.json").read_text())
+    assert v["rollout_id"] == rid and v["evidence"]["final_report"] == failed
+    assert msg.endswith("; final report: api_error (APIConnectionError: Connection error.)")
+    _, problems = recheck.recheck(str(tmp_path / rid), None, os.path.join(ROOT, "rules.yaml"))
+    assert problems == ["UNSIGNED: smoke evidence, no bundle to verify"]   # the verdict re-checks from its evidence
