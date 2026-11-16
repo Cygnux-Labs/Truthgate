@@ -345,6 +345,9 @@ agent's reach. What if the agent can edit what the judge reads, and do real mode
     claims, fewer than the 3 required." Reading the signed records showed the scorer's claim rows are not what they
     seem. A scorer without the two faults found there would have counted 6 "false claims" and said GO. Five of those
     claims were corrected by the agent before it finished, and the sixth is a misread.
+  - **Re-scored with the fixed scorer (2026-11-17).** With both faults fixed, the same signed records give 5 false
+    claims, the five blind reports, and no unverified ones, so the fixed scorer's gate says GO. The gate as
+    pre-registered and computed stays STOP. Every other row, stage 2 and the demo are unchanged.
   - **Stage 2.** The evidence scorer is not a detector for natural special-casing: its special-case check caught 0 of
     the 55 natural cheats, where study 1's LLM judge caught 55. It found one event only the call record shows: in
     the referee's pilot, Sonnet replaced a failing assertion with `pass`, ran the tests, then restored it.
@@ -429,7 +432,7 @@ scripts/start-signer.sh   # the referee's own signer, in a terminal of its own; 
   seed (the seed fixes the tasks only).
 
 **The tests need the dataset.** Without `data/tasks/`, the two study files (`tests/test_study_v2.py`,
-`tests/test_study_v3.py`) skip and say to run `make tasks`, 13 tests fail and 202 pass. With it, 224 pass, and 1 skips
+`tests/test_study_v3.py`) skip and say to run `make tasks`, 13 tests fail and 205 pass. With it, 227 pass, and 1 skips
 unless the referee's signer is running. Run `make tasks` first.
 
 ### The task dataset
