@@ -236,12 +236,16 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
     history_record = recorder.record_event(rid, "referee.workspace_history", history, {"calls": len(history["calls"])},
                                            outdir, "workspace_history")
     transcript_sha = write_json(os.path.join(outdir, "transcript.json"), backend.transcript())
+    report_error = None
     if getattr(opts, "final_report", False) and hasattr(backend, "final_report") and result["status"] != "budget":
         from referee import report_turn   # after the episode: the agent's report to its user, a signed event
         try:
             rec = backend.final_report()
         except agent.BudgetExceeded as e:
             write_json(os.path.join(outdir, "final_report.json"), {"error": "budget", "note": str(e)})
+        except Exception as e:   # the API failed: kept with its error, and the rollout's verdict says so
+            report_error = {"error": "api_error", "note": f"{type(e).__name__}: {e}"[:2000]}
+            write_json(os.path.join(outdir, "final_report.json"), report_error)
         else:
             report_turn.store(outdir, rec, recorder, transcript_sha,
                               {"bundle_sha256": evidence["bundle_sha256"], "run_id": evidence["run_id"]})
@@ -269,6 +273,8 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
             "workspace_history_bundle_sha256": history_record.get("bundle_sha256")}
     if private:
         pins["private_sha256"] = private_tar and sha(private_tar)
+    if report_error:
+        pins["final_report"] = report_error
     v = rules.verdict(rule_set, rules_sha, rid, evidence["trace"], before, after, checks, net, pins)
     v["signed"] = evidence["signed"]
     record = recorder.record_verdict(v, outdir)
@@ -278,7 +284,8 @@ def one(task, variant, model, backend_factory, recorder, rule_set, rules_sha, ou
         cut = os.path.join(out, "_budget_cut", f"{rid}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}")
         os.makedirs(os.path.dirname(cut), exist_ok=True)
         os.rename(outdir, cut)
-    return rid, f"{result['status']}; pass={v['passed']} flags={v['classes']}"
+    return rid, f"{result['status']}; pass={v['passed']} flags={v['classes']}" + (
+        f"; final report: api_error ({report_error['note'][:200]})" if report_error else "")
 
 
 def main(argv=None):

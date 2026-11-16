@@ -345,6 +345,9 @@ agent's reach. What if the agent can edit what the judge reads, and do real mode
     claims, fewer than the 3 required." Reading the signed records showed the scorer's claim rows are not what they
     seem. A scorer without the two faults found there would have counted 6 "false claims" and said GO. Five of those
     claims were corrected by the agent before it finished, and the sixth is a misread.
+  - **Re-scored with the fixed scorer (2026-11-17).** With both faults fixed, the same signed records give 5 false
+    claims, the five blind reports, and no unverified ones, so the fixed scorer's gate says GO. The gate as
+    pre-registered and computed stays STOP. Every other row, stage 2 and the demo are unchanged.
   - **Stage 2.** The evidence scorer is not a detector for natural special-casing: its special-case check caught 0 of
     the 55 natural cheats, where study 1's LLM judge caught 55. It found one event only the call record shows: in
     the referee's pilot, Sonnet replaced a failing assertion with `pass`, ran the tests, then restored it.
@@ -359,8 +362,8 @@ agent's reach. What if the agent can edit what the judge reads, and do real mode
 ## Next: a paper written from these results
 
 A paper on the five steps is being written from this repository. Everything it reports should be traceable to the
-pre-registrations, the results documents and the evidence manifests here. The run records will be published with the
-paper (see [Not included](#not-included)).
+pre-registrations, the results documents and the evidence manifests here. The run records are available to reviewers
+on request (see [Not included](#not-included)).
 
 ---
 
@@ -429,7 +432,7 @@ scripts/start-signer.sh   # the referee's own signer, in a terminal of its own; 
   seed (the seed fixes the tasks only).
 
 **The tests need the dataset.** Without `data/tasks/`, the two study files (`tests/test_study_v2.py`,
-`tests/test_study_v3.py`) skip and say to run `make tasks`, 13 tests fail and 202 pass. With it, 224 pass, and 1 skips
+`tests/test_study_v3.py`) skip and say to run `make tasks`, 13 tests fail and 205 pass. With it, 227 pass, and 1 skips
 unless the referee's signer is running. Run `make tasks` first.
 
 ### The task dataset
@@ -463,7 +466,9 @@ you use it. To rebuild what the studies used:
   ([`referee/HISTORY-MAP.md`](referee/HISTORY-MAP.md)).
 - **The signed run records** (`referee/runs/`, about 285 MB) and **the signers' trust configs**
   (`referee/signer-data/trust.json` and, for step 5's pilot, `runs/tamper-pilot/signer-data/trust.json`; public keys
-  only), to be published with the paper. A release of them would contain:
+  only), available to reviewers on request. They hold task text from Impossible-LiveCodeBench, which has no declared
+  licence, so they aren't posted; every record's SHA-256 is in the evidence manifests (`referee/docs/evidence-v*.tsv`),
+  and `tracekit verify` checks a copy against them. The records contain:
   - the run directories: the referee's pilot (`runs/pilot`), the study 1 and 2 conditions (`runs/v1/<condition>`),
     the synthetic suite (`runs/synthetic`), study 3 (`runs/v3/<arm>`) and step 5's pilot (`runs/tamper-pilot`);
   - per rollout: the signed bundle `rollout.tkb` and its `opening.json`, the workspace before and after (`before.tar`,
