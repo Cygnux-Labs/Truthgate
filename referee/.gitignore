@@ -4,5 +4,4 @@ __pycache__/
 runs/
 signer-data/data/
 signer-data/endpoint.json
-signer-data/trust.json
 signer-data/signer.log
