@@ -362,8 +362,8 @@ agent's reach. What if the agent can edit what the judge reads, and do real mode
 ## Next: a paper written from these results
 
 A paper on the five steps is being written from this repository. Everything it reports should be traceable to the
-pre-registrations, the results documents and the evidence manifests here. The run records will be published with the
-paper (see [Not included](#not-included)).
+pre-registrations, the results documents and the evidence manifests here. The run records are available to reviewers
+on request (see [Not included](#not-included)).
 
 ---
 
@@ -466,7 +466,9 @@ you use it. To rebuild what the studies used:
   ([`referee/HISTORY-MAP.md`](referee/HISTORY-MAP.md)).
 - **The signed run records** (`referee/runs/`, about 285 MB) and **the signers' trust configs**
   (`referee/signer-data/trust.json` and, for step 5's pilot, `runs/tamper-pilot/signer-data/trust.json`; public keys
-  only), to be published with the paper. A release of them would contain:
+  only), available to reviewers on request. They hold task text from Impossible-LiveCodeBench, which has no declared
+  licence, so they aren't posted; every record's SHA-256 is in the evidence manifests (`referee/docs/evidence-v*.tsv`),
+  and `tracekit verify` checks a copy against them. The records contain:
   - the run directories: the referee's pilot (`runs/pilot`), the study 1 and 2 conditions (`runs/v1/<condition>`),
     the synthetic suite (`runs/synthetic`), study 3 (`runs/v3/<arm>`) and step 5's pilot (`runs/tamper-pilot`);
   - per rollout: the signed bundle `rollout.tkb` and its `opening.json`, the workspace before and after (`before.tar`,
