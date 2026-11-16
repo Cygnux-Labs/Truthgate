@@ -9,3 +9,5 @@ __pycache__/
 .codex/
 .claude/settings.local.json
 *.log
+referee/analysis/streak-data.json
+referee/analysis/streak-numbers.txt
